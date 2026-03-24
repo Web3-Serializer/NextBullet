@@ -1,0 +1,42 @@
+<aside class="sidebar">
+    <div class="sidebar-logo">
+        <div>
+            <span class="sidebar-logo-text">NextBullet</span>
+            <span class="sidebar-logo-sub">v0.1.0</span>
+        </div>
+    </div>
+
+    <nav class="nav">
+        <div class="nav-label">Main</div>
+        <a href="/" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">
+            <i class="fas fa-home"></i> Dashboard
+        </a>
+        <a href="/runners" class="nav-link {% if request.endpoint in ('runners','view_runner') %}active{% endif %}">
+            <i class="fas fa-play-circle"></i> Runners
+        </a>
+
+        <div class="nav-label" style="margin-top:8px">Config</div>
+        <a href="/configs" class="nav-link {% if request.endpoint in ('configs','new_config','edit_config') %}active{% endif %}">
+            <i class="fas fa-file-code"></i> Configs
+        </a>
+        <a href="/wordlists" class="nav-link {% if request.endpoint == 'wordlists' %}active{% endif %}">
+            <i class="fas fa-list"></i> Wordlists
+        </a>
+        <a href="/hits" class="nav-link {% if request.endpoint == 'hits' %}active{% endif %}">
+            <i class="fas fa-bullseye"></i> Hits DB
+        </a>
+
+        <div class="nav-label" style="margin-top:8px">System</div>
+        <a href="/tools" class="nav-link {% if request.endpoint == 'tools' %}active{% endif %}">
+            <i class="fas fa-toolbox"></i> Tools
+        </a>
+        <a href="/api/docs" class="nav-link {% if request.endpoint == 'api_docs' %}active{% endif %}">
+            <i class="fas fa-book"></i> API Docs
+        </a>
+        <a href="/settings" class="nav-link {% if request.endpoint == 'settings' %}active{% endif %}">
+            <i class="fas fa-cog"></i> Settings
+        </a>
+    </nav>
+
+    <div class="sidebar-footer">NextBullet &copy; 2025</div>
+</aside>

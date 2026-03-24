@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Dashboard | NextBullet{% endblock %}
+
+{% block content %}
+<div class="topbar">
+    <div class="flex items-center">
+        <span class="topbar-title">Dashboard</span>
+        <span class="topbar-sub" id="ts"></span>
+    </div>
+    <div class="topbar-actions">
+        <a href="/runners" class="btn btn-primary btn-sm"><i class="fas fa-play"></i> New Runner</a>
+    </div>
+</div>
+<div class="page-body">
+    <div class="stats-row" id="stats-row">
+        <div class="stat-card">
+            <div class="stat-label">Active Runners</div>
+            <div class="stat-value blue" id="s-active">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Hits</div>
+            <div class="stat-value green" id="s-hits">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Configs</div>
+            <div class="stat-value" id="s-configs">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Wordlists</div>
+            <div class="stat-value" id="s-wl">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Runners</div>
+            <div class="stat-value" id="s-runners">0</div>
+        </div>
+    </div>
+
+    <div class="card mb-2">
+        <div class="card-title">Active Runners</div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Config</th>
+                        <th>Wordlist</th>
+                        <th>Progress</th>
+                        <th>Hits</th>
+                        <th>CPM</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="active-tbody">
+                    <tr><td colspan="6" class="table-empty">No active runners</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="flex gap-2">
+        <div class="card" style="flex:1">
+            <div class="card-title">Quick Actions</div>
+            <div class="flex flex-col gap-2">
+                <a href="/configs/new" class="btn btn-ghost"><i class="fas fa-plus"></i> Create Config</a>
+                <a href="/wordlists" class="btn btn-ghost"><i class="fas fa-upload"></i> Upload Wordlist</a>
+                <a href="/runners" class="btn btn-ghost"><i class="fas fa-play"></i> Start Runner</a>
+            </div>
+        </div>
+        <div class="card" style="flex:2">
+            <div class="card-title">Recent Hits</div>
+            <div class="hits-log" id="recent-hits" style="height:120px">
+                <span class="text-muted">No hits yet</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function refresh() {
+    try {
+        const [stats, runners] = await Promise.all([
+            fetch('/api/stats').then(r => r.json()),
+            fetch('/api/runners').then(r => r.json())
+        ]);
+        document.getElementById('s-active').textContent = stats.active_runners;
+        document.getElementById('s-hits').textContent = stats.total_hits;
+        document.getElementById('s-configs').textContent = stats.configs;
+        document.getElementById('s-wl').textContent = stats.wordlists;
+        document.getElementById('s-runners').textContent = stats.runners;
+
+        const tbody = document.getElementById('active-tbody');
+        const active = runners.filter(r => r.status === 'running');
+        if (active.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="table-empty">No active runners</td></tr>';
+        } else {
+            tbody.innerHTML = active.map(r => `
+                <tr>
+                    <td>${esc(r.config_name)}</td>
+                    <td class="mono">${esc(r.wordlist)}</td>
+                    <td>
+                        <div class="progress-wrap">
+                            <div class="progress-bar"><div class="progress-fill" style="width:${r.progress}%"></div></div>
+                            <span class="progress-pct">${r.progress}%</span>
+                        </div>
+                    </td>
+                    <td class="text-green bold">${r.hits}</td>
+                    <td>${r.cpm}</td>
+                    <td><span class="badge badge-running"><span class="dot"></span>running</span></td>
+                </tr>`).join('');
+        }
+        const allHits = [];
+        for (const r of runners) {
+            const hits = await fetch(`/api/runners/${r.id}/hits`).then(x => x.json());
+            hits.forEach(h => allHits.push(h));
+        }
+        allHits.sort((a,b) => b.time.localeCompare(a.time));
+        const el = document.getElementById('recent-hits');
+        if (allHits.length === 0) {
+            el.innerHTML = '<span class="text-muted">No hits yet</span>';
+        } else {
+            el.innerHTML = allHits.slice(0,20).map(h =>
+                `<div class="hit-line">[${h.time}] ${esc(h.combo)}</div>`
+            ).join('');
+        }
+    } catch(e) {}
+}
+
+function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+document.getElementById('ts').textContent = new Date().toLocaleString();
+refresh();
+setInterval(refresh, 3000);
+</script>
+{% endblock %}

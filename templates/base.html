@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}NextBullet{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+<div class="app">
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+    {% include 'sidebar.html' %}
+    <div class="main">
+        {% block content %}{% endblock %}
+    </div>
+</div>
+{% block extra_js %}{% endblock %}
+<script>
+function openSidebar()  { document.querySelector('.sidebar').classList.add('open'); document.getElementById('sidebar-overlay').classList.add('open'); }
+function closeSidebar() { document.querySelector('.sidebar').classList.remove('open'); document.getElementById('sidebar-overlay').classList.remove('open'); }
+document.addEventListener('DOMContentLoaded', () => {
+    const topbar = document.querySelector('.topbar');
+    if (topbar) {
+        const btn = document.createElement('button');
+        btn.className = 'hamburger';
+        btn.innerHTML = '<i class="fas fa-bars"></i>';
+        btn.onclick = openSidebar;
+        topbar.insertBefore(btn, topbar.firstChild);
+    }
+});
+</script>
+</body>
+</html>

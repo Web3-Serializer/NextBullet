@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block title %}Runners | NextBullet{% endblock %}
+
+{% block content %}
+<div class="topbar">
+    <span class="topbar-title">Runners</span>
+    <div class="topbar-actions">
+        <button class="btn btn-ghost btn-sm" onclick="loadRunners()"><i class="fas fa-sync"></i></button>
+        <button class="btn btn-primary btn-sm" onclick="openNewModal()"><i class="fas fa-plus"></i> New Runner</button>
+    </div>
+</div>
+<div class="page-body">
+    <div class="table-wrap card" style="padding:0;overflow:hidden">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Config</th>
+                    <th>Wordlist</th>
+                    <th>Threads</th>
+                    <th>Progress</th>
+                    <th>Hits</th>
+                    <th>Fails</th>
+                    <th>Errors</th>
+                    <th>CPM</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="runners-tbody">
+                <tr><td colspan="11" class="table-empty">No runners. Click New Runner to start.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    
+    <div id="hits-panel" class="hits-panel" style="display:none">
+        <div class="hits-panel-header">
+            <span>Hits: <span id="hits-panel-title"></span></span>
+            <div class="flex gap-1">
+                <button class="btn btn-ghost btn-sm" onclick="exportHits()"><i class="fas fa-download"></i> Export</button>
+                <button class="btn-icon" onclick="closeHits()"><i class="fas fa-times"></i></button>
+            </div>
+        </div>
+        <div class="hits-log" id="hits-log"></div>
+    </div>
+</div>
+
+<div id="modal-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+        <div class="modal-title">
+            New Runner
+            <button class="btn-icon" onclick="closeModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Config *</label>
+            <select id="sel-config" class="select"></select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Wordlist *</label>
+            <select id="sel-wordlist" class="select"></select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Threads</label>
+            <input id="inp-threads" type="number" class="input" value="10" min="1" max="200">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Proxies <span class="form-hint">(one per line, optional)</span></label>
+            <textarea id="inp-proxies" class="textarea" placeholder="http://user:pass@host:port&#10;socks5://host:port" style="height:80px"></textarea>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="startRunner()"><i class="fas fa-play"></i> Start</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/modal.js') }}"></script>
+<script>
+let currentHitsId = null;
+let hitsData = {};
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function loadRunners() {
+    try {
+        const runners = await fetch('/api/runners').then(r => r.json());
+        renderRunners(runners);
+    } catch(e) {}
+}
+
+function renderRunners(runners) {
+    const tbody = document.getElementById('runners-tbody');
+    if (runners.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" class="table-empty">No runners. Click New Runner to start.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = runners.map((r, i) => {
+        const actions = [];
+        if (r.status === 'running')  actions.push(`<button class="btn-icon" title="Pause"  onclick="runnerAction('${r.id}','pause')"><i class="fas fa-pause"></i></button>`);
+        if (r.status === 'paused')   actions.push(`<button class="btn-icon" title="Resume" onclick="runnerAction('${r.id}','resume')"><i class="fas fa-play"></i></button>`);
+        if (['running','paused'].includes(r.status))
+            actions.push(`<button class="btn-icon" title="Stop" onclick="runnerAction('${r.id}','stop')"><i class="fas fa-stop"></i></button>`);
+        actions.push(`<a class="btn-icon" title="View" href="/runners/${r.id}/view"><i class="fas fa-eye"></i></a>`);
+        actions.push(`<button class="btn-icon" title="Hits" onclick="showHits('${r.id}','${esc(r.config_name)}')"><i class="fas fa-star"></i></button>`);
+        actions.push(`<button class="btn-icon" title="Remove" onclick="removeRunner('${r.id}')"><i class="fas fa-trash"></i></button>`);
+
+        return `<tr>
+            <td class="text-muted mono">${i+1}</td>
+            <td>${esc(r.config_name)}</td>
+            <td class="mono">${esc(r.wordlist)}</td>
+            <td>${r.threads}</td>
+            <td>
+                <div class="progress-wrap">
+                    <div class="progress-bar"><div class="progress-fill ${r.status==='finished'?'green':''}" style="width:${r.progress}%"></div></div>
+                    <span class="progress-pct">${r.progress}%</span>
+                </div>
+                <div style="font-size:11px;color:var(--text-muted)">${r.tested}/${r.total}</div>
+            </td>
+            <td class="text-green bold">${r.hits}</td>
+            <td class="text-muted">${r.fails}</td>
+            <td class="text-muted">${r.errors}</td>
+            <td class="mono">${r.cpm}</td>
+            <td><span class="badge badge-${r.status}"><span class="dot"></span>${r.status}</span></td>
+            <td><div class="flex gap-1">${actions.join('')}</div></td>
+        </tr>`;
+    }).join('');
+}
+
+async function runnerAction(id, action) {
+    await fetch(`/api/runners/${id}/${action}`, {method:'POST'});
+    loadRunners();
+}
+
+async function removeRunner(id) {
+    const ok = await NB.confirm('Remove this runner?', 'The runner will be stopped and removed.');
+    if (!ok) return;
+    await fetch(`/api/runners/${id}`, {method:'DELETE'});
+    if (currentHitsId === id) closeHits();
+    loadRunners();
+}
+
+async function showHits(id, name) {
+    currentHitsId = id;
+    document.getElementById('hits-panel-title').textContent = name;
+    document.getElementById('hits-panel').style.display = 'block';
+    await refreshHits();
+}
+
+async function refreshHits() {
+    if (!currentHitsId) return;
+    const hits = await fetch(`/api/runners/${currentHitsId}/hits`).then(r => r.json());
+    hitsData[currentHitsId] = hits;
+    const el = document.getElementById('hits-log');
+    if (hits.length === 0) {
+        el.innerHTML = '<span class="text-muted">No hits yet</span>';
+    } else {
+        el.innerHTML = hits.map(h =>
+            `<div class="hit-line">[${esc(h.time)}] ${esc(h.combo)}</div>`
+        ).join('');
+        el.scrollTop = el.scrollHeight;
+    }
+}
+
+function closeHits() {
+    currentHitsId = null;
+    document.getElementById('hits-panel').style.display = 'none';
+}
+
+function exportHits() {
+    if (!currentHitsId || !hitsData[currentHitsId]) return;
+    const txt = hitsData[currentHitsId].map(h => h.combo).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([txt], {type:'text/plain'}));
+    a.download = `hits_${currentHitsId.slice(0,8)}.txt`;
+    a.click();
+}
+
+async function openNewModal() {
+    const [configs, wordlists] = await Promise.all([
+        fetch('/api/configs').then(r => r.json()),
+        fetch('/api/wordlists').then(r => r.json()),
+    ]);
+    const csel = document.getElementById('sel-config');
+    const wsel = document.getElementById('sel-wordlist');
+    csel.innerHTML = configs.length
+        ? configs.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('')
+        : '<option value="">No configs</option>';
+    wsel.innerHTML = wordlists.length
+        ? wordlists.map(w => `<option value="${w.name}">${esc(w.name)} (${w.lines} lines)</option>`).join('')
+        : '<option value="">No wordlists</option>';
+    document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+function closeModal() {
+    document.getElementById('modal-overlay').style.display = 'none';
+}
+
+async function startRunner() {
+    const config_id = document.getElementById('sel-config').value;
+    const wordlist  = document.getElementById('sel-wordlist').value;
+    const threads   = parseInt(document.getElementById('inp-threads').value) || 10;
+    const proxies   = document.getElementById('inp-proxies').value;
+
+    if (!config_id || !wordlist) { NB.alert('Select a config and wordlist', 'Missing'); return; }
+
+    const resp = await fetch('/api/runners', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({config_id, wordlist, threads, proxies})
+    });
+    if (resp.ok) {
+        closeModal();
+        loadRunners();
+    } else {
+        const err = await resp.json();
+        NB.alert(err.error || 'Failed to start runner', 'Error');
+    }
+}
+
+loadRunners();
+setInterval(() => { loadRunners(); if(currentHitsId) refreshHits(); }, 2000);
+</script>
+{% endblock %}

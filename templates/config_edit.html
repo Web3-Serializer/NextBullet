@@ -1,0 +1,1196 @@
+{% extends "base.html" %}
+{% block title %}{% if config %}Edit{% else %}New Config{% endif %} | NextBullet{% endblock %}
+
+{% block extra_css %}
+<style>
+.editor-root {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    height: calc(100vh - 52px);
+    overflow: hidden;
+}
+.editor-left {
+    display: flex; flex-direction: column;
+    border-right: 1px solid var(--border);
+    overflow: hidden; background: var(--bg-1);
+}
+.editor-right {
+    display: flex; flex-direction: column;
+    overflow: hidden; background: var(--bg-0);
+}
+.editor-section-title {
+    padding: 8px 16px;
+    font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-2); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+}
+
+.meta-bar {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-1);
+    display: flex; flex-direction: column; gap: 8px;
+    flex-shrink: 0;
+}
+.meta-row { display: grid; gap: 8px; }
+.meta-row-4 { grid-template-columns: 1fr 1fr 80px 80px; }
+.meta-row-3 { grid-template-columns: 1fr 100px 100px; }
+
+.view-toggle { display: flex; gap: 2px; }
+.view-toggle button {
+    padding: 3px 8px; background: transparent;
+    border: 1px solid var(--border); color: var(--text-muted);
+    font-size: 11px; cursor: pointer; border-radius: 3px;
+    transition: background 0.12s ease, color 0.12s ease;
+}
+.view-toggle button:hover { color: var(--text-dim); background: var(--bg-3); }
+.view-toggle button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.blocks-area { flex: 1; overflow-y: auto; font-size: 13px; }
+.blocks-empty { padding: 40px 20px; text-align: center; color: var(--text-muted); }
+.blocks-empty i { font-size: 24px; margin-bottom: 10px; display: block; }
+.blocks-empty code { font-family: var(--mono); background: var(--bg-3); padding: 2px 6px; border-radius: 3px; font-size: 12px; }
+
+.pl-line {
+    display: flex; align-items: center; padding: 0; cursor: pointer;
+    border-left: 3px solid transparent; transition: background 0.12s ease;
+    font-family: var(--mono);
+}
+.pl-line:hover { background: var(--bg-3); }
+.pl-line.active { background: var(--accent-dim); border-left-color: var(--accent); }
+.pl-line.dbg-current { background: rgba(245,158,11,0.08); border-left-color: var(--yellow); }
+.pl-num { width: 36px; min-width: 36px; text-align: right; padding: 7px 8px 7px 0; font-size: 11px; color: var(--text-muted); user-select: none; }
+.pl-type { width: 88px; min-width: 88px; padding: 6px; display: flex; align-items: center; justify-content: center; }
+.pl-summary { flex: 1; padding: 7px 4px; color: var(--text-dim); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.pl-actions { display: flex; gap: 0; padding-right: 4px; opacity: 0; transition: opacity 0.12s ease; }
+.pl-line:hover .pl-actions { opacity: 1; }
+
+.pl-line[data-indent="1"] .pl-summary { padding-left: 16px; }
+.pl-line[data-indent="2"] .pl-summary { padding-left: 32px; }
+.pl-line[data-indent="3"] .pl-summary { padding-left: 48px; }
+
+.list-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px; cursor: pointer;
+    border-bottom: 1px solid var(--border); border-left: 3px solid transparent;
+    transition: background 0.12s ease;
+}
+.list-item:hover { background: var(--bg-3); }
+.list-item.active { background: var(--accent-dim); border-left-color: var(--accent); }
+.list-item-body { flex: 1; min-width: 0; }
+.list-item-title { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-item-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.list-item-num { font-size: 11px; color: var(--text-muted); font-weight: 600; min-width: 20px; text-align: center; }
+.list-item-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.12s ease; }
+.list-item:hover .list-item-actions { opacity: 1; }
+
+.code-view { font-family: var(--mono); font-size: 12px; line-height: 1.7; padding: 12px 0; counter-reset: codeline; }
+.code-block { cursor: pointer; border-left: 3px solid transparent; padding: 4px 16px 4px 0; transition: background 0.12s ease; position: relative; }
+.code-block:hover { background: var(--bg-3); }
+.code-block.active { background: var(--accent-dim); border-left-color: var(--accent); }
+.code-block + .code-block { margin-top: 2px; }
+.code-keyword { color: #c084fc; }
+.code-method  { color: #3b82f6; font-weight: 600; }
+.code-string  { color: #22c55e; }
+.code-var     { color: #f59e0b; }
+.code-dim     { color: var(--text-muted); }
+.code-line    { padding-left: 48px; }
+.code-line-num { position: absolute; left: 8px; width: 32px; text-align: right; color: var(--text-muted); font-size: 11px; user-select: none; }
+.code-actions { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: flex; gap: 2px; opacity: 0; transition: opacity 0.12s ease; }
+.code-block:hover .code-actions { opacity: 1; }
+
+.add-block-bar { padding: 10px 16px; border-top: 1px solid var(--border); background: var(--bg-1); flex-shrink: 0; }
+.add-cat { margin-bottom: 6px; }
+.add-cat:last-child { margin-bottom: 0; }
+.add-cat-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+.add-cat-label i { font-size: 9px; }
+.add-cat-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+
+.right-tabs { display: flex; flex-shrink: 0; border-bottom: 1px solid var(--border); background: var(--bg-2); }
+.right-tab {
+    padding: 8px 16px; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--text-muted); cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.12s ease;
+    background: none; border-top: none; border-left: none; border-right: none;
+}
+.right-tab:hover { color: var(--text-dim); }
+.right-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.tab-panel { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+.tab-panel.active { display: flex; }
+.block-form-area { flex: 1; overflow-y: auto; padding: 16px; }
+.block-form-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.block-form-name { font-size: 14px; font-weight: 600; color: var(--text); flex: 1; }
+.vars-hint {
+    padding: 10px 16px; background: var(--bg-2); border-top: 1px solid var(--border);
+    flex-shrink: 0; font-size: 11px; color: var(--text-muted);
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.var-chip {
+    background: var(--bg-4); color: var(--text-dim);
+    padding: 1px 7px; border-radius: 3px;
+    font-family: var(--mono); font-size: 11px; cursor: pointer;
+    transition: background 0.12s ease;
+}
+.var-chip:hover { background: var(--border-hi); color: var(--text); }
+
+
+.start-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: none; align-items: center; justify-content: center; }
+.start-overlay.open { display: flex; }
+
+.console {
+    flex: 1; overflow-y: auto; padding: 0;
+    font-family: var(--mono); font-size: 11px; line-height: 1;
+    background: #08080a;
+}
+.con-line {
+    padding: 3px 12px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    border-bottom: 1px solid rgba(255,255,255,0.02);
+}
+.con-line:hover { background: rgba(255,255,255,0.03); }
+.con-time { color: #555; }
+.con-step { color: #6b84f8; }
+.con-response { color: #3b82f6; }
+.con-headers { color: #f59e0b; }
+.con-vars { color: #22c55e; }
+.con-cookies { color: #a855f7; }
+.con-result-SUCCESS { color: #22c55e; font-weight: 700; }
+.con-result-FAIL { color: #ef4444; font-weight: 700; }
+.con-result-RETRY { color: #f59e0b; font-weight: 700; }
+.con-result-BAN { color: #a855f7; font-weight: 700; }
+.con-error { color: #ef4444; }
+.con-key { color: #8e8e9a; }
+.con-val { color: #dddde3; }
+.con-capture { color: #f59e0b; }
+.con-sep { color: #313139; }
+
+.browser-bar {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 10px;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.browser-url {
+    flex: 1; background: var(--bg-0); border: 1px solid var(--border);
+    color: var(--text-dim); font-family: var(--mono); font-size: 12px;
+    padding: 5px 10px; border-radius: 14px;
+    outline: none; min-width: 0;
+}
+.browser-status {
+    font-size: 11px; font-weight: 700; font-family: var(--mono);
+    padding: 2px 8px; border-radius: 10px; flex-shrink: 0;
+}
+.browser-status-2xx { background: var(--green-dim); color: var(--green); }
+.browser-status-3xx { background: var(--blue-dim); color: var(--blue); }
+.browser-status-4xx { background: var(--yellow-dim); color: var(--yellow); }
+.browser-status-5xx { background: var(--red-dim); color: var(--red); }
+.browser-status-none { background: var(--bg-4); color: var(--text-muted); }
+.browser-view-toggle { display: flex; gap: 2px; flex-shrink: 0; }
+.browser-view-toggle button {
+    padding: 3px 8px; background: transparent; border: 1px solid var(--border);
+    color: var(--text-muted); font-size: 10px; cursor: pointer; border-radius: 3px;
+}
+.browser-view-toggle button:hover { color: var(--text-dim); background: var(--bg-3); }
+.browser-view-toggle button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.browser-frame {
+    flex: 1; border: none; background: #fff; width: 100%;
+}
+.browser-source {
+    flex: 1; overflow: auto; padding: 12px;
+    font-family: var(--mono); font-size: 11px; line-height: 1.5;
+    background: #08080a; color: var(--text-dim);
+    white-space: pre-wrap; word-break: break-all;
+    margin: 0;
+}
+.browser-empty {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); font-size: 12px;
+}
+
+.qt-bar {
+    padding: 8px 12px;
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    display: flex; flex-direction: column; gap: 4px;
+}
+
+.qt-result-tag {
+    font-size: 9px; font-weight: 700; padding: 2px 8px;
+    border-radius: 10px; text-transform: uppercase;
+}
+
+.pl-line .pl-status, .list-item .pl-status, .code-block .pl-status {
+    font-size: 10px; margin-left: auto; flex-shrink: 0; padding: 0 6px;
+}
+.pl-status-ok    { color: var(--green); }
+.pl-status-fail  { color: var(--red); }
+.pl-status-skip  { color: var(--text-muted); }
+.pl-status-run   { color: var(--yellow); }
+.pl-status-cond  { color: var(--purple); }
+
+@media (max-width: 900px) {
+    .editor-root { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    .editor-left { border-right: none; border-bottom: 1px solid var(--border); }
+    .meta-row-4 { grid-template-columns: 1fr 1fr; }
+    .meta-row-3 { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="topbar" style="padding:0 16px">
+    <div class="flex items-center gap-2">
+        <a href="/configs" class="btn-icon"><i class="fas fa-arrow-left"></i></a>
+        <span class="topbar-title" id="topbar-name">{% if config %}{{ config.name }}{% else %}New Config{% endif %}</span>
+    </div>
+    <div class="topbar-actions">
+        <span id="save-status" style="font-size:11px;color:var(--text-muted)"></span>
+        <button class="btn btn-ghost btn-sm" onclick="duplicateSelected()" title="Duplicate"><i class="fas fa-copy"></i></button>
+        <button class="btn btn-ghost btn-sm" onclick="exportConfig()" title="Export"><i class="fas fa-download"></i></button>
+        <button class="btn btn-ghost btn-sm" onclick="openStartModal()" title="Start Runner"><i class="fas fa-play"></i> Start</button>
+    </div>
+</div>
+
+<div class="editor-root">
+    
+    <div class="editor-left">
+        <div class="meta-bar">
+            <div class="meta-row meta-row-4">
+                <div class="form-group" style="margin:0">
+                    <label class="form-label">Name</label>
+                    <input id="cfg-name" class="input" placeholder="My Config" value="{{ config.name if config else '' }}" oninput="document.getElementById('topbar-name').textContent=this.value||'New Config'">
+                </div>
+                <div class="form-group" style="margin:0">
+                    <label class="form-label">Author</label>
+                    <input id="cfg-author" class="input" placeholder="anon" value="{{ config.author if config else '' }}">
+                </div>
+                <div class="form-group" style="margin:0">
+                    <label class="form-label">Threads</label>
+                    <input id="cfg-threads" class="input" type="number" min="1" max="200" value="{{ config.settings.max_threads if config else 10 }}">
+                </div>
+                <div class="form-group" style="margin:0">
+                    <label class="form-label">Timeout</label>
+                    <input id="cfg-timeout" class="input" type="number" min="1" max="120" value="{{ config.settings.timeout if config else 10 }}">
+                </div>
+            </div>
+            <div class="meta-row" style="grid-template-columns:1fr 80px 100px 100px">
+                <div class="form-group" style="margin:0">
+                    <label class="form-label">Description</label>
+                    <input id="cfg-desc" class="input" placeholder="Config description..." value="{{ config.description if config and config.description else '' }}">
+                </div>
+                <div class="form-group" style="margin:0">
+                    <label class="form-label">Separator</label>
+                    <input id="cfg-separator" class="input mono" placeholder=":" value="{{ config.settings.data_separator if config and config.settings.data_separator else ':' }}">
+                </div>
+                <div class="form-group" style="margin:0">
+                    <label class="form-label">Proxy mode</label>
+                    <select id="cfg-proxy-mode" class="select" style="font-size:12px">
+                        {% set pm = config.settings.proxy_mode if config and config.settings else 'rotate' %}
+                        <option value="rotate" {{ 'selected' if pm == 'rotate' else '' }}>Rotate</option>
+                        <option value="random" {{ 'selected' if pm == 'random' else '' }}>Random</option>
+                        <option value="sticky" {{ 'selected' if pm == 'sticky' else '' }}>Sticky</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin:0">
+                    <label class="form-label">Max retries</label>
+                    <input id="cfg-retries" class="input" type="number" min="0" max="10" value="{{ config.settings.max_retries if config and config.settings.max_retries else 3 }}">
+                </div>
+            </div>
+            <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-dim)">
+                    <input type="checkbox" id="cfg-use-proxies" {{ 'checked' if config and config.settings.get('use_proxies') else '' }}>
+                    Require Proxies
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-dim)">
+                    <input type="checkbox" id="cfg-verbose" {{ 'checked' if config and config.settings.get('verbose') else '' }}>
+                    Verbose
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-dim)">
+                    <input type="checkbox" id="cfg-stop-on-hit" {{ 'checked' if config and config.settings and config.settings.get('stop_on_hit') else '' }}>
+                    Stop on hit
+                </label>
+            </div>
+        </div>
+
+        <div class="editor-section-title">
+            <span>Blocks <span id="block-count" style="color:var(--text-dim);font-weight:400;text-transform:none;letter-spacing:0;font-size:11px"></span></span>
+            <div class="view-toggle" id="view-toggle">
+                <button data-view="pipeline" class="active" title="Pipeline"><i class="fas fa-bars"></i></button>
+                <button data-view="list" title="List"><i class="fas fa-th-list"></i></button>
+                <button data-view="code" title="Code"><i class="fas fa-terminal"></i></button>
+            </div>
+        </div>
+
+        <div class="blocks-area" id="blocks-area"></div>
+
+        <div class="add-block-bar" style="display:flex;justify-content:center">
+            <button class="btn btn-primary btn-sm" onclick="openNewBlockModal(addBlock)" style="width:100%"><i class="fas fa-plus"></i> New Block</button>
+        </div>
+
+    </div>
+
+    <div class="editor-right">
+        <div class="qt-bar">
+            <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0">
+                <input id="qt-combo" class="input mono" placeholder="user:pass" style="font-size:12px;padding:5px 8px;flex:1;min-width:0">
+                <input id="qt-proxy" class="input mono" placeholder="proxy (optional)" style="font-size:12px;padding:5px 8px;width:160px">
+                <button class="btn btn-primary btn-sm" id="qt-run-btn" onclick="quickTest()" style="white-space:nowrap"><i class="fas fa-play"></i> Run</button>
+                <button class="btn btn-ghost btn-sm" onclick="quickTestReset()" title="Reset"><i class="fas fa-undo"></i></button>
+                <span id="test-result-inline" style="flex-shrink:0"></span>
+            </div>
+            <div id="qt-progress" style="display:none">
+                <div class="progress-bar" style="height:3px"><div class="progress-fill" id="qt-progress-fill" style="width:0%"></div></div>
+            </div>
+        </div>
+
+        <div class="right-tabs">
+            <button class="right-tab active" data-tab="props" onclick="switchTab('props')">Properties</button>
+            <button class="right-tab" data-tab="logs" onclick="switchTab('logs')">Logs</button>
+            <button class="right-tab" data-tab="browser" onclick="switchTab('browser')">Browser</button>
+        </div>
+
+        <div class="tab-panel active" id="tab-props">
+            <div class="block-form-area" id="block-form-area">
+                <div style="text-align:center;padding:60px 20px;color:var(--text-muted)">
+                    <i class="fas fa-code" style="font-size:28px;margin-bottom:12px;display:block;color:var(--bg-5)"></i>
+                    Select a block to edit<br>
+                    <small>or add one from the categories below</small>
+                </div>
+            </div>
+            <div class="vars-hint">
+                <span style="font-weight:600">Variables:</span>
+                <span class="var-chip" onclick="insertVar('USER')">&lt;USER&gt;</span>
+                <span class="var-chip" onclick="insertVar('PASS')">&lt;PASS&gt;</span>
+                <span class="var-chip" onclick="insertVar('COMBO')">&lt;COMBO&gt;</span>
+                <span class="var-chip" onclick="insertVar('STATUS')">&lt;STATUS&gt;</span>
+                <span id="custom-var-chips"></span>
+            </div>
+        </div>
+
+        <div class="tab-panel" id="tab-logs">
+            <div style="padding:6px 12px;border-bottom:1px solid var(--border);background:#08080a;display:flex;align-items:center;gap:6px;flex-shrink:0">
+                <div class="view-toggle" id="log-filter">
+                    <button class="active" data-lf="all" onclick="setLogFilter('all')">All</button>
+                    <button data-lf="step" onclick="setLogFilter('step')">Steps</button>
+                    <button data-lf="response" onclick="setLogFilter('response')">Response</button>
+                    <button data-lf="headers" onclick="setLogFilter('headers')">Headers</button>
+                    <button data-lf="variables" onclick="setLogFilter('variables')">Vars</button>
+                    <button data-lf="capture" onclick="setLogFilter('capture')">Captures</button>
+                </div>
+                <span id="log-count" style="font-size:10px;color:#555;margin-left:auto;font-family:var(--mono)"></span>
+                <button class="btn btn-ghost btn-sm" onclick="clearLogs()" style="padding:2px 6px"><i class="fas fa-trash"></i></button>
+            </div>
+            <div id="log-output" class="console"></div>
+            <div style="padding:4px 8px;border-top:1px solid var(--border);background:#08080a;display:flex;align-items:center;gap:6px;flex-shrink:0">
+                <i class="fas fa-search" style="color:#555;font-size:10px"></i>
+                <input id="log-search" class="input mono" placeholder="Search logs..." style="font-size:11px;padding:3px 8px;background:transparent;border:none;flex:1;color:var(--text-dim)" oninput="searchLogs(this.value)">
+                <span id="log-search-count" style="font-size:10px;color:#555;font-family:var(--mono)"></span>
+            </div>
+        </div>
+
+        <div class="tab-panel" id="tab-browser">
+            <div class="browser-bar">
+                <i class="fas fa-globe" style="color:var(--text-muted);font-size:12px"></i>
+                <input id="browser-url" class="browser-url" readonly placeholder="No request sent yet" value="">
+                <span id="browser-status" class="browser-status browser-status-none"></span>
+                <div class="browser-view-toggle" id="browser-mode">
+                    <button class="active" data-bm="render" onclick="setBrowserMode('render')">Render</button>
+                    <button data-bm="source" onclick="setBrowserMode('source')">Source</button>
+                    <button data-bm="headers" onclick="setBrowserMode('headers')">Headers</button>
+                </div>
+            </div>
+            <iframe id="browser-frame" class="browser-frame" sandbox="allow-same-origin" style="display:block"></iframe>
+            <pre id="browser-source" class="browser-source" style="display:none"></pre>
+            <div id="browser-empty" class="browser-empty">
+                <div style="text-align:center">
+                    <i class="fas fa-globe" style="font-size:28px;margin-bottom:10px;display:block;color:var(--bg-5)"></i>
+                    Run a test to see the response here
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="start-overlay" id="start-modal">
+    <div class="modal">
+        <div class="modal-title">Start Runner <button class="btn-icon" onclick="closeStartModal()"><i class="fas fa-times"></i></button></div>
+        <div class="form-group">
+            <label class="form-label">Wordlist</label>
+            <select id="start-wl" class="select"><option value="">Loading...</option></select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Threads</label>
+            <input id="start-threads" class="input" type="number" min="1" max="200" value="10">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Proxies (one per line)</label>
+            <textarea id="start-proxies" class="textarea mono" rows="4" placeholder="http://user:pass@host:port"></textarea>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeStartModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="startRunner()"><i class="fas fa-play"></i> Start</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/modal.js') }}"></script>
+<script src="{{ url_for('static', filename='js/blocks.js') }}"></script>
+<script>
+const state = { id: null, blocks: [], sel: null, viewMode: 'pipeline' };
+let lastFocused = null;
+
+const raw = {{ config_json | safe }};
+if (raw) {
+    state.id = raw.id;
+    state.blocks = (raw.blocks || []).map((b, i) => ({ ...b, _id: 'b' + i + '_' + Math.random().toString(36).slice(2) }));
+}
+
+function genId() { return 'b_' + Math.random().toString(36).slice(2, 9); }
+
+function switchTab(tab) {
+    document.querySelectorAll('.right-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
+}
+
+document.getElementById('view-toggle').addEventListener('click', e => {
+    const btn = e.target.closest('[data-view]');
+    if (!btn) return;
+    state.viewMode = btn.dataset.view;
+    document.querySelectorAll('#view-toggle button').forEach(b => b.classList.toggle('active', b === btn));
+    renderBlocks();
+});
+
+function calcIndents(blocks) {
+    const indents = [];
+    let depth = 0;
+    for (const b of blocks) {
+        const t = b.type;
+        if (t === 'elif' || t === 'else' || t === 'endif') depth = Math.max(0, depth - 1);
+        indents.push(depth);
+        if (t === 'if' || t === 'elif' || t === 'else') depth++;
+    }
+    return indents;
+}
+
+function renderBlocks() {
+    const el = document.getElementById('blocks-area');
+    const count = document.getElementById('block-count');
+    count.textContent = state.blocks.length ? `(${state.blocks.length})` : '';
+
+    if (!state.blocks.length) {
+        el.innerHTML = `<div class="blocks-empty">
+            <i class="fas fa-stream"></i>No blocks yet.<br>
+            Add blocks from the categories below.<br><br>
+            <small>Example: <code>REQUEST</code> then <code>KEYCHECK</code></small>
+        </div>`;
+        updateCustomVarChips();
+        return;
+    }
+
+    if (state.viewMode === 'pipeline') renderPipeline(el);
+    else if (state.viewMode === 'list') renderList(el);
+    else renderCode(el);
+    updateCustomVarChips();
+}
+
+function renderPipeline(el) {
+    const indents = calcIndents(state.blocks);
+    el.innerHTML = '<div style="padding:8px 0">' + state.blocks.map((b, i) => {
+        const reg = BLOCK_REGISTRY[b.type] || {};
+        const summary = reg.summary ? reg.summary(b) : b.label || b.type;
+        return `<div class="pl-line${state.sel === b._id ? ' active' : ''}" data-indent="${Math.min(indents[i],3)}" onclick="selectBlock('${b._id}')">
+            <span class="pl-num">${String(i + 1).padStart(2, '0')}</span>
+            <span class="pl-type"><span class="badge block-type-badge ${reg.colorClass || ''}" style="font-size:9px">${b.type}</span></span>
+            <span class="pl-summary">${esc(summary)}</span>
+            ${blockStatusHtml(b._id)}
+            ${blockActions(b._id)}
+        </div>`;
+    }).join('') + '</div>';
+}
+
+function renderList(el) {
+    el.innerHTML = state.blocks.map((b, i) => {
+        const reg = BLOCK_REGISTRY[b.type] || {};
+        const summary = reg.summary ? reg.summary(b) : '';
+        return `<div class="list-item ${state.sel === b._id ? 'active' : ''}" onclick="selectBlock('${b._id}')" style="border-left-color:${state.sel===b._id ? 'var(--accent)' : (reg.borderColor||'transparent')}">
+            <span class="list-item-num">${i + 1}</span>
+            <span class="badge block-type-badge ${reg.colorClass || ''}" style="font-size:9px">${b.type}</span>
+            <div class="list-item-body">
+                <div class="list-item-title">${esc(b.label || reg.label || b.type)}</div>
+                ${summary ? `<div class="list-item-sub">${esc(summary)}</div>` : ''}
+            </div>
+            ${blockStatusHtml(b._id)}
+            <div class="list-item-actions">${blockActionsInner(b._id)}</div>
+        </div>`;
+    }).join('');
+}
+
+function renderCode(el) {
+    el.innerHTML = '<div class="code-view">' + state.blocks.map((b, i) => {
+        const reg = BLOCK_REGISTRY[b.type] || {};
+        const code = reg.codeLine ? reg.codeLine(b) : `${b.type.toUpperCase()} ${b.label||''}`;
+        return `<div class="code-block ${state.sel === b._id ? 'active' : ''}" onclick="selectBlock('${b._id}')">
+            <span class="code-line-num">${i + 1}</span>
+            <div class="code-line">${highlightCode(code)}</div>
+            ${blockStatusHtml(b._id)}
+            <div class="code-actions">${blockActionsInner(b._id)}</div>
+        </div>`;
+    }).join('') + '</div>';
+}
+
+function highlightCode(code) {
+    return esc(code)
+        .replace(/^(REQUEST|TLS_REQUEST|TCP|KEYCHECK|KEYCHECK_CUSTOM|PARSE|SET|CONST|IF|ELIF|ELSE|ENDIF|LOOP|ENDLOOP|BREAK|FUNCTION|RANDOM|SCRIPT|WAIT|LOG|CAPTCHA)\b/gm, '<span class="code-keyword">$1</span>')
+        .replace(/\b(GET|POST|PUT|PATCH|DELETE|HEAD)\b/g, '<span class="code-method">$1</span>')
+        .replace(/\b(SUCCESS|FAIL|RETRY|BAN|BETWEEN|AND|FROM|REGEX|JSON|BODY|EQUALS|NOT_EQUALS|CONTAINS|NOT_CONTAINS|STARTS_WITH|ENDS_WITH|GREATER_THAN|LESS_THAN|EXISTS|NOT_EXISTS|IS_EMPTY|IS_NOT_EMPTY|MATCHES_REGEX|LENGTH_EQUALS|LENGTH_GREATER|LENGTH_LESS|SSL|EACH|TIMES|AS|IN|CLIENT|UPPERCASE|LOWERCASE|TRUE|FALSE)\b/g, '<span class="code-dim">$1</span>')
+        .replace(/&quot;([^&]*)&quot;/g, '<span class="code-string">"$1"</span>')
+        .replace(/&lt;([A-Z_]+)&gt;/g, '<span class="code-var">&lt;$1&gt;</span>')
+        .replace(/\[(\w+)\]/g, '<span class="code-dim">[$1]</span>')
+        .replace(/\n/g, '<br>');
+}
+
+function blockActions(id) { return `<div class="pl-actions">${blockActionsInner(id)}</div>`; }
+function blockActionsInner(id) {
+    return `<button class="btn-icon" style="font-size:11px" title="Up" onclick="event.stopPropagation();moveBlock('${id}',-1)"><i class="fas fa-chevron-up"></i></button>
+        <button class="btn-icon" style="font-size:11px" title="Down" onclick="event.stopPropagation();moveBlock('${id}',1)"><i class="fas fa-chevron-down"></i></button>
+        <button class="btn-icon" style="font-size:11px;color:var(--red)" title="Delete" onclick="event.stopPropagation();deleteBlock('${id}')"><i class="fas fa-trash"></i></button>`;
+}
+
+
+function selectBlock(id) {
+    flush();
+    state.sel = id;
+    renderBlocks();
+    renderForm();
+    switchTab('props');
+}
+
+function renderForm() {
+    const area = document.getElementById('block-form-area');
+    const b = state.blocks.find(b => b._id === state.sel);
+
+    if (!b) {
+        area.innerHTML = `<div style="text-align:center;padding:60px 20px;color:var(--text-muted)">
+            <i class="fas fa-code" style="font-size:28px;margin-bottom:12px;display:block;color:var(--bg-5)"></i>Select a block to edit</div>`;
+        return;
+    }
+
+    const reg = BLOCK_REGISTRY[b.type];
+    if (!reg) { area.innerHTML = `<p style="padding:16px;color:var(--text-muted)">Unknown type: ${esc(b.type)}</p>`; return; }
+    const idx = state.blocks.findIndex(bl => bl._id === b._id);
+
+    area.innerHTML = `<div class="block-form-header">
+        <span class="badge block-type-badge ${reg.colorClass}">${b.type}</span>
+        <span class="block-form-name">${esc(b.label || reg.label)}</span>
+        <span style="font-size:11px;color:var(--text-muted)">#${idx+1}</span>
+    </div>
+    <div id="form-fields">${reg.renderForm(b)}</div>`;
+
+    const reRenderFields = new Set(['provider', 'tls_lib', 'mode', 'auth_type', 'action']);
+    area.querySelectorAll('[data-field]').forEach(el => {
+        const ev = el.type === 'checkbox' || el.type === 'radio' ? 'change' : 'input';
+        el.addEventListener(ev, () => {
+            flush(false);
+            if (reRenderFields.has(el.dataset.field)) renderForm();
+        });
+        el.addEventListener('focus', () => { lastFocused = el; });
+    });
+    area.querySelectorAll('[data-kv-key],[data-kv-val]').forEach(el => {
+        el.addEventListener('focus', () => { lastFocused = el; });
+    });
+}
+
+function flush(rerender = true) {
+    if (!state.sel) return;
+    const area = document.getElementById('block-form-area');
+    const fields = area.querySelectorAll('[data-field]');
+    if (!fields.length) return;
+    const b = state.blocks.find(b => b._id === state.sel);
+    if (!b) return;
+    const reg = BLOCK_REGISTRY[b.type];
+    if (!reg) return;
+    const raw = {};
+    fields.forEach(el => {
+        if (el.type === 'radio') { if (el.checked) raw[el.dataset.field] = el.value; }
+        else if (el.type === 'checkbox') { raw[el.dataset.field] = el.checked; }
+        else { raw[el.dataset.field] = el.value; }
+    });
+    Object.assign(b, reg.parseForm(raw, area));
+    if (rerender) renderBlocks();
+    if (!_saving) triggerAutoSave();
+}
+
+function addBlock(type) {
+    flush();
+    const reg = BLOCK_REGISTRY[type];
+    if (!reg) return;
+    const block = { type, _id: genId(), ...JSON.parse(JSON.stringify(reg.defaultData)) };
+    state.blocks.push(block);
+    selectBlock(block._id);
+    triggerAutoSave();
+    setTimeout(() => { const a = document.getElementById('blocks-area'); a.scrollTop = a.scrollHeight; }, 50);
+}
+
+function moveBlock(id, dir) {
+    flush();
+    const i = state.blocks.findIndex(b => b._id === id);
+    if (i < 0) return;
+    const j = i + dir;
+    if (j < 0 || j >= state.blocks.length) return;
+    [state.blocks[i], state.blocks[j]] = [state.blocks[j], state.blocks[i]];
+    renderBlocks();
+    triggerAutoSave();
+}
+
+async function deleteBlock(id) {
+    const ok = await NB.confirm('Delete this block?');
+    if (!ok) return;
+    flush();
+    state.blocks = state.blocks.filter(b => b._id !== id);
+    if (state.sel === id) { state.sel = null; renderForm(); }
+    renderBlocks();
+    triggerAutoSave();
+}
+
+function duplicateSelected() {
+    if (!state.sel) return;
+    flush();
+    const b = state.blocks.find(b => b._id === state.sel);
+    if (!b) return;
+    const { _id, ...rest } = b;
+    const copy = { ...JSON.parse(JSON.stringify(rest)), _id: genId(), label: (b.label || b.type) + ' (copy)' };
+    const idx = state.blocks.findIndex(b => b._id === state.sel);
+    state.blocks.splice(idx + 1, 0, copy);
+    selectBlock(copy._id);
+}
+
+function insertVar(name) {
+    const tag = '<' + name + '>';
+    if (!lastFocused) return;
+    const el = lastFocused;
+    const s = el.selectionStart || 0;
+    const e = el.selectionEnd || 0;
+    el.value = el.value.slice(0, s) + tag + el.value.slice(e);
+    el.selectionStart = el.selectionEnd = s + tag.length;
+    el.dispatchEvent(new Event('input'));
+    el.focus();
+}
+
+function updateCustomVarChips() {
+    const defined = new Set();
+    state.blocks.forEach(b => {
+        if (b.type === 'parse' && b.variable) defined.add(b.variable.toUpperCase());
+        if (b.type === 'set_variable' && b.variable) defined.add(b.variable.toUpperCase());
+    });
+    document.getElementById('custom-var-chips').innerHTML = [...defined].map(v =>
+        `<span class="var-chip" onclick="insertVar('${v}')">&lt;${esc(v)}&gt;</span>`
+    ).join('');
+}
+
+function gatherSettings() {
+    return {
+        max_threads:    parseInt(document.getElementById('cfg-threads').value) || 10,
+        timeout:        parseInt(document.getElementById('cfg-timeout').value) || 10,
+        data_separator: document.getElementById('cfg-separator').value || ':',
+        proxy_mode:     document.getElementById('cfg-proxy-mode').value || 'rotate',
+        max_retries:    parseInt(document.getElementById('cfg-retries').value) || 3,
+        use_proxies:    document.getElementById('cfg-use-proxies').checked,
+        verbose:        document.getElementById('cfg-verbose').checked,
+        stop_on_hit:    document.getElementById('cfg-stop-on-hit').checked,
+    };
+}
+
+let _autoSaveTimer = null;
+let _saving = false;
+
+function triggerAutoSave() {
+    if (_autoSaveTimer) clearTimeout(_autoSaveTimer);
+    document.getElementById('save-status').textContent = 'Modified';
+    document.getElementById('save-status').style.color = 'var(--yellow)';
+    _autoSaveTimer = setTimeout(() => saveConfig(true), 1500);
+}
+
+async function saveConfig(auto) {
+    if (_saving) return;
+    _saving = true;
+    flush();
+    const name   = document.getElementById('cfg-name').value.trim() || 'New Config';
+    const author = document.getElementById('cfg-author').value.trim();
+
+    const description = document.getElementById('cfg-desc').value.trim();
+
+    const payload = {
+        name, author, description, settings: gatherSettings(),
+        blocks: state.blocks.map(({ _id, ...rest }) => rest),
+    };
+
+    const url    = state.id ? `/api/configs/${state.id}` : '/api/configs';
+    const method = state.id ? 'PUT' : 'POST';
+    try {
+        const resp = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (resp.ok) {
+            const saved = await resp.json();
+            state.id = saved.id;
+            history.replaceState(null, '', `/configs/${saved.id}/edit`);
+            document.getElementById('topbar-name').textContent = saved.name;
+            const st = document.getElementById('save-status');
+            if (auto) {
+                st.textContent = 'Saved';
+                st.style.color = 'var(--green)';
+            } else {
+                NB.toast('Saved');
+                st.textContent = 'Saved';
+                st.style.color = 'var(--green)';
+            }
+        }
+    } catch(e) {}
+    _saving = false;
+}
+
+function exportConfig() {
+    flush();
+    const payload = {
+        name: document.getElementById('cfg-name').value.trim() || 'New Config',
+        author: document.getElementById('cfg-author').value.trim(),
+        settings: gatherSettings(),
+        blocks: state.blocks.map(({ _id, ...rest }) => rest),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (payload.name.replace(/[^a-zA-Z0-9_-]/g, '_') || 'config') + '.nbcfg';
+    a.click();
+}
+
+let logEntries = [];
+let logFilter = 'all';
+
+function addLog(tag, msg) {
+    const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    logEntries.push({ tag, msg, time });
+    renderLogs();
+}
+
+function renderLogs() {
+    const el = document.getElementById('log-output');
+    if (!el) return;
+    const filtered = logFilter === 'all' ? logEntries : logEntries.filter(e => e.tag === logFilter);
+    const countEl = document.getElementById('log-count');
+    if (countEl) countEl.textContent = `${filtered.length}/${logEntries.length}`;
+
+    if (!filtered.length) {
+        el.innerHTML = '<div style="color:#333;padding:20px;text-align:center;font-family:var(--font);font-size:12px">Console ready</div>';
+        return;
+    }
+    el.innerHTML = filtered.map(e => `<div class="con-line"><span class="con-time">[${e.time}]</span> ${e.msg}</div>`).join('');
+    el.scrollTop = el.scrollHeight;
+}
+
+function setLogFilter(f) {
+    logFilter = f;
+    document.querySelectorAll('#log-filter button').forEach(b => b.classList.toggle('active', b.dataset.lf === f));
+    renderLogs();
+}
+
+function clearLogs() { logEntries = []; renderLogs(); }
+
+function searchLogs(query) {
+    const el = document.getElementById('log-output');
+    const countEl = document.getElementById('log-search-count');
+    const lines = el.querySelectorAll('.con-line');
+    if (!query) {
+        lines.forEach(l => { l.style.display = ''; l.innerHTML = l.innerHTML.replace(/<mark[^>]*>(.*?)<\/mark>/g, '$1'); });
+        countEl.textContent = '';
+        return;
+    }
+    const q = query.toLowerCase();
+    let matches = 0;
+    lines.forEach(l => {
+        const text = l.textContent.toLowerCase();
+        if (text.includes(q)) {
+            l.style.display = '';
+            matches++;
+        } else {
+            l.style.display = 'none';
+        }
+    });
+    countEl.textContent = `${matches} match${matches !== 1 ? 'es' : ''}`;
+}
+
+const browserState = { url: '', status: '', response: '', headers: {}, mode: 'render' };
+
+function updateBrowser(ctx) {
+    if (ctx.response) browserState.response = String(ctx.response);
+    if (ctx.status) browserState.status = String(ctx.status);
+    if (ctx.response_headers) browserState.headers = ctx.response_headers;
+
+    const urlEl = document.getElementById('browser-url');
+    const statusEl = document.getElementById('browser-status');
+
+    if (ctx._last_url) browserState.url = ctx._last_url;
+    if (!browserState.url) {
+        for (const b of state.blocks) {
+            if ((b.type === 'request' || b.type === 'tls_request') && b.url) {
+                browserState.url = b.url;
+            }
+        }
+    }
+    urlEl.value = browserState.url || '';
+
+    const code = browserState.status;
+    if (code) {
+        statusEl.textContent = code;
+        const n = parseInt(code);
+        statusEl.className = 'browser-status browser-status-' +
+            (n >= 500 ? '5xx' : n >= 400 ? '4xx' : n >= 300 ? '3xx' : n >= 200 ? '2xx' : 'none');
+    } else {
+        statusEl.textContent = '';
+        statusEl.className = 'browser-status browser-status-none';
+    }
+
+    renderBrowserView();
+}
+
+function renderBrowserView() {
+    const frame = document.getElementById('browser-frame');
+    const source = document.getElementById('browser-source');
+    const empty = document.getElementById('browser-empty');
+
+    if (!browserState.response && !Object.keys(browserState.headers).length) {
+        frame.style.display = 'none';
+        source.style.display = 'none';
+        empty.style.display = 'flex';
+        return;
+    }
+    empty.style.display = 'none';
+
+    if (browserState.mode === 'render') {
+        frame.style.display = 'block';
+        source.style.display = 'none';
+        frame.srcdoc = browserState.response || '';
+    } else if (browserState.mode === 'source') {
+        frame.style.display = 'none';
+        source.style.display = 'block';
+        source.textContent = browserState.response || '';
+    } else {
+        frame.style.display = 'none';
+        source.style.display = 'block';
+        const h = browserState.headers || {};
+        source.textContent = `HTTP ${browserState.status || '?'}\n` +
+            Object.entries(h).map(([k,v]) => `${k}: ${v}`).join('\n');
+    }
+}
+
+function setBrowserMode(mode) {
+    browserState.mode = mode;
+    document.querySelectorAll('#browser-mode button').forEach(b =>
+        b.classList.toggle('active', b.dataset.bm === mode));
+    renderBrowserView();
+}
+
+function resetBrowser() {
+    browserState.url = '';
+    browserState.status = '';
+    browserState.response = '';
+    browserState.headers = {};
+    document.getElementById('browser-url').value = '';
+    document.getElementById('browser-status').textContent = '';
+    document.getElementById('browser-status').className = 'browser-status browser-status-none';
+    renderBrowserView();
+}
+
+let _prevCtx = {};
+const _initVars = new Set(['user', 'pass', 'combo']);
+
+function logContext(ctx) {
+    updateBrowser(ctx);
+
+    const userLogs = ctx._logs || [];
+    const prevLogs = _prevCtx._logs || [];
+    if (userLogs.length > prevLogs.length) {
+        userLogs.slice(prevLogs.length).forEach(l => {
+            const lvlColor = { info: 'con-step', warn: 'con-headers', error: 'con-error', debug: 'con-vars' }[l.level] || 'con-step';
+            addLog('step', `<span class="${lvlColor}">[LOG ${(l.level||'info').toUpperCase()}]</span> <span class="con-val">${esc(l.message)}</span>`);
+        });
+    }
+
+    const skip = new Set(['response', 'response_headers', '_proxy', '_result', '_captures', '_logs']);
+    const caps = ctx._captures || {};
+
+    const newVars = [];
+    const changedVars = [];
+    for (const [k, v] of Object.entries(ctx)) {
+        if (skip.has(k) || k.startsWith('_')) continue;
+        const sv = String(v);
+        if (!(k in _prevCtx)) {
+            if (!_initVars.has(k)) newVars.push([k, sv]);
+        } else if (String(_prevCtx[k]) !== sv) {
+            changedVars.push([k, sv]);
+        }
+    }
+
+    if (newVars.length) {
+        newVars.forEach(([k,v]) => {
+            const trunc = v;
+            addLog('variables', `<span class="con-vars">[+]</span> <span class="con-key">${esc(k)}</span> = <span class="con-val">${esc(trunc)}</span>`);
+        });
+    }
+
+    if (changedVars.length) {
+        changedVars.forEach(([k,v]) => {
+            const trunc = v;
+            addLog('variables', `<span class="con-vars">[~]</span> <span class="con-key">${esc(k)}</span> = <span class="con-val">${esc(trunc)}</span>`);
+        });
+    }
+
+    const prevCaps = _prevCtx._captures || {};
+    for (const [k, v] of Object.entries(caps)) {
+        const sv = String(v);
+        if (!(k in prevCaps) || String(prevCaps[k]) !== sv) {
+            addLog('capture', `<span class="con-capture">[CAPTURE]</span> <span class="con-capture">${esc(k)}</span> = <span class="con-val">${esc(sv)}</span>`);
+        }
+    }
+
+    const prevResp = _prevCtx.response || '';
+    if (ctx.response && String(ctx.response) !== String(prevResp)) {
+        const r = String(ctx.response);
+        addLog('response', `<span class="con-response">[RESPONSE]</span> <span class="con-key">${r.length} chars</span>\n<span class="con-val">${esc(r)}</span>`);
+    }
+
+    const prevHeaders = JSON.stringify(_prevCtx.response_headers || {});
+    const curHeaders = JSON.stringify(ctx.response_headers || {});
+    if (ctx.response_headers && Object.keys(ctx.response_headers).length && curHeaders !== prevHeaders) {
+        const h = ctx.response_headers;
+        const lines = Object.entries(h).map(([k,v]) =>
+            `<span class="con-key">${esc(k)}</span>: <span class="con-val">${esc(String(v).slice(0,100))}</span>`
+        ).join('\n');
+        addLog('headers', `<span class="con-headers">[HEADERS]</span>\n${lines}`);
+    }
+
+    _prevCtx = JSON.parse(JSON.stringify(ctx));
+}
+
+async function openStartModal() {
+    await saveConfig();
+    if (!state.id) return;
+
+    document.getElementById('start-modal').classList.add('open');
+    document.getElementById('start-threads').value = document.getElementById('cfg-threads').value || 10;
+
+    const resp = await fetch('/api/wordlists');
+    const wls = await resp.json();
+    const sel = document.getElementById('start-wl');
+    sel.innerHTML = wls.length
+        ? wls.map(w => `<option value="${w.name}">${w.name} (${w.lines} lines)</option>`).join('')
+        : '<option value="">No wordlists</option>';
+}
+
+function closeStartModal() {
+    document.getElementById('start-modal').classList.remove('open');
+}
+
+async function startRunner() {
+    const wl = document.getElementById('start-wl').value;
+    if (!wl) { NB.alert('Select a wordlist', 'Missing'); return; }
+
+    const resp = await fetch('/api/runners', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            config_id: state.id,
+            wordlist: wl,
+            threads: parseInt(document.getElementById('start-threads').value) || 10,
+            proxies: document.getElementById('start-proxies').value,
+        }),
+    });
+
+    if (resp.ok) {
+        closeStartModal();
+        window.location.href = '/runners';
+    } else {
+        const err = await resp.json();
+        NB.alert(err.error || 'Failed to start runner', 'Error');
+    }
+}
+
+document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveConfig(); }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); quickTest(); }
+    if (e.key === 'Escape') { flush(); state.sel = null; renderBlocks(); renderForm(); closeStartModal(); }
+});
+
+const qtState = { running: false, results: {}, finalResult: null };
+
+function quickTestReset() {
+    qtState.running = false;
+    qtState.results = {};
+    qtState.finalResult = null;
+    document.getElementById('qt-run-btn').disabled = false;
+    document.getElementById('qt-run-btn').innerHTML = '<i class="fas fa-play"></i> Run';
+    document.getElementById('qt-progress').style.display = 'none';
+    document.getElementById('test-result-inline').innerHTML = '';
+    _prevCtx = {};
+    resetBrowser();
+    clearLogs();
+    renderBlocks();
+    fetch('/api/debugger/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: 'qt_' + (state.id || 'new') }) }).catch(() => {});
+}
+
+async function quickTest() {
+    if (qtState.running) return;
+    if (!state.blocks.length) return;
+    flush();
+
+    _prevCtx = {};
+    clearLogs();
+    resetBrowser();
+    qtState.running = true;
+    qtState.results = {};
+    qtState.finalResult = null;
+
+    const btn = document.getElementById('qt-run-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running';
+    document.getElementById('test-result-inline').innerHTML = '';
+    document.getElementById('qt-progress').style.display = 'block';
+
+    const combo = document.getElementById('qt-combo').value.trim() || 'test:test';
+    const proxy = document.getElementById('qt-proxy').value.trim() || null;
+    const sep = document.getElementById('cfg-separator').value || ':';
+    const parts = combo.split(sep, 2);
+    let context = { user: parts[0] || '', pass: parts[1] || '', combo, _proxy: proxy, _result: 'NONE' };
+    const blocks = state.blocks.map(({ _id, ...rest }) => rest);
+
+    let step = 0;
+    let guard = 0;
+
+    while (step < blocks.length && guard < 200) {
+        guard++;
+        const pct = Math.round((step / blocks.length) * 100);
+        document.getElementById('qt-progress-fill').style.width = pct + '%';
+
+        const blockId = state.blocks[step]?._id;
+        if (blockId) {
+            qtState.results[blockId] = 'running';
+            renderBlocks();
+        }
+
+        try {
+            const resp = await fetch('/api/debugger/step', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ blocks, step, context, session_id: 'qt_' + (state.id || 'new') }),
+            });
+            const data = await resp.json();
+
+            if (data.error && data.ok === undefined) {
+                if (blockId) qtState.results[blockId] = 'fail';
+                break;
+            }
+
+            context = data.context || context;
+
+            if (blockId) {
+                if (data.condition !== undefined) {
+                    qtState.results[blockId] = data.condition ? 'cond-true' : 'cond-false';
+                } else if (data.ok === false) {
+                    qtState.results[blockId] = 'fail';
+                } else {
+                    qtState.results[blockId] = 'ok';
+                }
+            }
+
+            if (data.ok === false) {
+                addLog('error', `<span class="con-error">[ERROR]</span> Step ${data.step + 1}: ${esc(data.block_type || '?')} FAILED: ${esc(data.error || 'unknown')}`);
+            } else if (data.condition !== undefined) {
+                const c = data.condition;
+                addLog('step', `<span class="con-step">[STEP ${data.step + 1}]</span> ${esc(data.block_type)} <span class="${c?'con-vars':'con-error'}">${c?'TRUE':'FALSE'}</span>`);
+            } else {
+                addLog('step', `<span class="con-step">[STEP ${data.step + 1}]</span> ${esc(data.block_type)}`);
+            }
+            logContext(data.context || {});
+
+            const nextStep = data.next_step ?? (step + 1);
+
+            if (nextStep > step + 1) {
+                for (let s = step + 1; s < nextStep && s < state.blocks.length; s++) {
+                    const skipId = state.blocks[s]?._id;
+                    if (skipId && !qtState.results[skipId]) qtState.results[skipId] = 'skip';
+                }
+            }
+
+            step = nextStep;
+
+            const result = context._result;
+            if (result && result !== 'NONE' && ['SUCCESS', 'FAIL', 'RETRY', 'BAN'].includes(result)) {
+                qtState.finalResult = result;
+                addLog('result', `<span class="con-result-${result}">[${result}]</span> combo: ${esc(document.getElementById('qt-combo').value||'test:test')}`);
+                break;
+            }
+
+            if (data.done) break;
+        } catch (e) {
+            if (blockId) qtState.results[blockId] = 'fail';
+            break;
+        }
+    }
+
+    if (!qtState.finalResult) {
+        qtState.finalResult = context._result || 'FAIL';
+    }
+
+    document.getElementById('qt-progress-fill').style.width = '100%';
+
+    const colors = { SUCCESS: 'var(--green)', FAIL: 'var(--red)', RETRY: 'var(--yellow)', BAN: 'var(--purple)', ERROR: 'var(--red)' };
+    const c = colors[qtState.finalResult] || 'var(--text-muted)';
+    document.getElementById('test-result-inline').innerHTML =
+        `<span class="qt-result-tag" style="background:${c};color:#fff">${qtState.finalResult}</span>`;
+
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-play"></i> Run';
+    qtState.running = false;
+    renderBlocks();
+}
+
+function getBlockStatus(blockId) {
+    return qtState.results[blockId] || null;
+}
+
+function blockStatusHtml(blockId) {
+    const s = getBlockStatus(blockId);
+    if (!s) return '';
+    const map = {
+        'ok':         '<span class="pl-status pl-status-ok"><i class="fas fa-check"></i></span>',
+        'fail':       '<span class="pl-status pl-status-fail"><i class="fas fa-times"></i></span>',
+        'skip':       '<span class="pl-status pl-status-skip"><i class="fas fa-minus"></i></span>',
+        'running':    '<span class="pl-status pl-status-run"><i class="fas fa-circle-notch fa-spin"></i></span>',
+        'cond-true':  '<span class="pl-status pl-status-cond"><i class="fas fa-check"></i> T</span>',
+        'cond-false': '<span class="pl-status pl-status-cond"><i class="fas fa-times"></i> F</span>',
+    };
+    return map[s] || '';
+}
+
+renderBlocks();
+
+['cfg-name','cfg-author','cfg-threads','cfg-timeout','cfg-separator','cfg-desc','cfg-retries'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', triggerAutoSave);
+});
+['cfg-use-proxies','cfg-verbose','cfg-stop-on-hit','cfg-proxy-mode'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', triggerAutoSave);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,481 @@
+{% extends "base.html" %}
+{% block title %}API Documentation | NextBullet{% endblock %}
+
+{% block extra_css %}
+<style>
+.api-doc { max-width: 900px; }
+.api-section { margin-bottom: 24px; }
+.api-section-title {
+    font-size: 16px; font-weight: 700; color: var(--text);
+    padding-bottom: 8px; margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+}
+.api-section-title i { color: var(--accent); font-size: 14px; }
+.api-endpoint {
+    background: var(--bg-2); border: 1px solid var(--border);
+    border-radius: var(--r-lg); margin-bottom: 10px; overflow: hidden;
+}
+.api-ep-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px; cursor: pointer; user-select: none;
+    transition: background 0.12s ease;
+}
+.api-ep-head:hover { background: var(--bg-3); }
+.api-method {
+    font-size: 10px; font-weight: 700; font-family: var(--mono);
+    padding: 3px 8px; border-radius: 4px; min-width: 52px; text-align: center;
+    text-transform: uppercase;
+}
+.m-GET    { background: var(--green-dim); color: var(--green); }
+.m-POST   { background: var(--blue-dim); color: var(--blue); }
+.m-PUT    { background: var(--yellow-dim); color: var(--yellow); }
+.m-DELETE { background: var(--red-dim); color: var(--red); }
+.api-path { font-family: var(--mono); font-size: 13px; color: var(--text); flex: 1; }
+.api-desc { font-size: 12px; color: var(--text-muted); }
+.api-ep-body {
+    display: none; padding: 14px 16px;
+    border-top: 1px solid var(--border);
+    font-size: 12px; line-height: 1.7;
+}
+.api-endpoint.open .api-ep-body { display: block; }
+.api-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin: 10px 0 4px; }
+.api-label:first-child { margin-top: 0; }
+.api-code {
+    background: #08080a; border: 1px solid var(--border); border-radius: var(--r);
+    padding: 10px 14px; font-family: var(--mono); font-size: 11px;
+    color: var(--text-dim); overflow-x: auto; white-space: pre-wrap;
+    line-height: 1.6; margin: 4px 0;
+}
+.api-param-table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 4px 0; }
+.api-param-table th { text-align: left; font-size: 10px; font-weight: 600; color: var(--text-muted); padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.api-param-table td { padding: 4px 8px; border-bottom: 1px solid rgba(42,42,50,0.3); color: var(--text-dim); }
+.api-param-table td:first-child { font-family: var(--mono); color: var(--accent); white-space: nowrap; }
+.api-param-table td:nth-child(2) { color: var(--text-muted); font-family: var(--mono); font-size: 11px; }
+
+.api-base-url {
+    background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-lg);
+    padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;
+}
+.api-base-url-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+.api-base-url-val { font-family: var(--mono); font-size: 14px; color: var(--accent); }
+
+.api-try-btn { margin-top: 8px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="topbar">
+    <span class="topbar-title">API Documentation</span>
+    <div class="topbar-actions">
+        <span class="topbar-sub">REST API v1</span>
+    </div>
+</div>
+
+<div class="page-body">
+<div class="api-doc">
+
+<div class="api-base-url">
+    <span class="api-base-url-label">Base URL</span>
+    <span class="api-base-url-val" id="base-url"></span>
+</div>
+
+<div class="api-section">
+    <div class="api-section-title"><i class="fas fa-chart-bar"></i> Stats</div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-GET">GET</span>
+            <span class="api-path">/api/stats</span>
+            <span class="api-desc">Global statistics</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Response</div>
+            <div class="api-code">{ "configs": 5, "wordlists": 3, "runners": 2, "active_runners": 1, "total_hits": 42 }</div>
+        </div>
+    </div>
+</div>
+
+<div class="api-section">
+    <div class="api-section-title"><i class="fas fa-file-code"></i> Configs</div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-GET">GET</span>
+            <span class="api-path">/api/configs</span>
+            <span class="api-desc">List all configs</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Response</div>
+            <div class="api-code">[{ "id": "uuid", "name": "My Config", "author": "anon", "created_at": "...", "settings": {...}, "blocks": [...] }]</div>
+        </div>
+    </div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-POST">POST</span>
+            <span class="api-path">/api/configs</span>
+            <span class="api-desc">Create a new config</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Body (JSON)</div>
+            <table class="api-param-table">
+                <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+                <tr><td>name</td><td>string</td><td>Config name</td></tr>
+                <tr><td>author</td><td>string</td><td>Author name</td></tr>
+                <tr><td>settings</td><td>object</td><td>{ max_threads, timeout, data_separator, use_proxies, verbose }</td></tr>
+                <tr><td>blocks</td><td>array</td><td>Array of block objects</td></tr>
+            </table>
+            <div class="api-label">Response (201)</div>
+            <div class="api-code">{ "id": "generated-uuid", "name": "My Config", ... }</div>
+        </div>
+    </div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-GET">GET</span>
+            <span class="api-path">/api/configs/:id</span>
+            <span class="api-desc">Get a config by ID</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Response</div>
+            <div class="api-code">{ "id": "...", "name": "...", "blocks": [...], "settings": {...} }</div>
+        </div>
+    </div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-PUT">PUT</span>
+            <span class="api-path">/api/configs/:id</span>
+            <span class="api-desc">Update a config</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Body (JSON)</div>
+            <div class="api-code">{ "name": "...", "author": "...", "settings": {...}, "blocks": [...] }</div>
+        </div>
+    </div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-DELETE">DELETE</span>
+            <span class="api-path">/api/configs/:id</span>
+            <span class="api-desc">Delete a config</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Response</div>
+            <div class="api-code">{ "ok": true }</div>
+        </div>
+    </div>
+</div>
+
+<div class="api-section">
+    <div class="api-section-title"><i class="fas fa-list"></i> Wordlists</div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-GET">GET</span>
+            <span class="api-path">/api/wordlists</span>
+            <span class="api-desc">List all wordlists</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Response</div>
+            <div class="api-code">[{ "name": "combos.txt", "size": 1024, "lines": 500, "modified": "..." }]</div>
+        </div>
+    </div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-POST">POST</span>
+            <span class="api-path">/api/wordlists</span>
+            <span class="api-desc">Upload a wordlist file</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Body</div>
+            <p style="color:var(--text-dim)">Multipart form data with field <code style="color:var(--accent)">file</code></p>
+            <div class="api-label">Example (curl)</div>
+            <div class="api-code">curl -X POST -F "file=@combos.txt" http://localhost:5000/api/wordlists</div>
+        </div>
+    </div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-DELETE">DELETE</span>
+            <span class="api-path">/api/wordlists/:name</span>
+            <span class="api-desc">Delete a wordlist</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Response</div>
+            <div class="api-code">{ "ok": true }</div>
+        </div>
+    </div>
+</div>
+
+<div class="api-section">
+    <div class="api-section-title"><i class="fas fa-play-circle"></i> Runners</div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-GET">GET</span>
+            <span class="api-path">/api/runners</span>
+            <span class="api-desc">List all runners</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Response</div>
+            <div class="api-code">[{
+  "id": "uuid", "name": "Runner abc12345",
+  "config_name": "...", "wordlist": "combos.txt",
+  "status": "running", "total": 1000, "tested": 450,
+  "hits": 12, "fails": 430, "retries": 5, "errors": 3, "bans": 0,
+  "cpm": 320, "progress": 45.0, "threads": 10,
+  "started_at": "...", "finished_at": null
+}]</div>
+        </div>
+    </div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-POST">POST</span>
+            <span class="api-path">/api/runners</span>
+            <span class="api-desc">Create and start a new runner</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Body (JSON)</div>
+            <table class="api-param-table">
+                <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+                <tr><td>config_id</td><td>string</td><td>Config UUID (required)</td></tr>
+                <tr><td>wordlist</td><td>string</td><td>Wordlist filename (required)</td></tr>
+                <tr><td>threads</td><td>int</td><td>Number of threads (default: 10)</td></tr>
+                <tr><td>proxies</td><td>string</td><td>Proxy list, one per line (optional)</td></tr>
+            </table>
+            <div class="api-label">Example</div>
+            <div class="api-code">{
+  "config_id": "a0148c06-ad1d-4531-9994-98b0e855499f",
+  "wordlist": "combos.txt",
+  "threads": 50,
+  "proxies": "http://proxy1:8080\nhttp://proxy2:8080"
+}</div>
+            <div class="api-label">Response (201)</div>
+            <div class="api-code">{ "id": "runner-uuid" }</div>
+        </div>
+    </div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-GET">GET</span>
+            <span class="api-path">/api/runners/:id</span>
+            <span class="api-desc">Get runner status and stats</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Response</div>
+            <div class="api-code">{ "id": "...", "status": "running", "tested": 450, "total": 1000, "hits": 12, "cpm": 320, ... }</div>
+            <div class="api-label">Status values</div>
+            <p style="color:var(--text-dim)"><code>idle</code> <code>running</code> <code>paused</code> <code>stopped</code> <code>finished</code> <code>error</code></p>
+        </div>
+    </div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-POST">POST</span>
+            <span class="api-path">/api/runners/:id/pause</span>
+            <span class="api-desc">Pause a running runner</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Response</div>
+            <div class="api-code">{ "ok": true }</div>
+        </div>
+    </div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-POST">POST</span>
+            <span class="api-path">/api/runners/:id/resume</span>
+            <span class="api-desc">Resume a paused runner</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Response</div>
+            <div class="api-code">{ "ok": true }</div>
+        </div>
+    </div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-POST">POST</span>
+            <span class="api-path">/api/runners/:id/stop</span>
+            <span class="api-desc">Stop a runner</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Response</div>
+            <div class="api-code">{ "ok": true }</div>
+        </div>
+    </div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-DELETE">DELETE</span>
+            <span class="api-path">/api/runners/:id</span>
+            <span class="api-desc">Remove a runner (stops it first)</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Response</div>
+            <div class="api-code">{ "ok": true }</div>
+        </div>
+    </div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-GET">GET</span>
+            <span class="api-path">/api/runners/:id/hits</span>
+            <span class="api-desc">Get hits for a specific runner</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Response</div>
+            <div class="api-code">[{ "combo": "user:pass", "user": "user", "pass": "pass", "time": "14:30:01", "captures": { "token": "abc" }, "extra": {...} }]</div>
+        </div>
+    </div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-GET">GET</span>
+            <span class="api-path">/api/runners/:id/log</span>
+            <span class="api-desc">Get live log entries (polling)</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Query params</div>
+            <table class="api-param-table">
+                <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+                <tr><td>after</td><td>int</td><td>Return entries with id > after (for polling)</td></tr>
+            </table>
+            <div class="api-label">Response</div>
+            <div class="api-code">[{ "id": 42, "time": "14:30:01", "combo": "user:pass", "user": "user", "result": "SUCCESS", "status": "200", "captures": { "token": "abc" }, "extra": {...} }]</div>
+        </div>
+    </div>
+</div>
+
+<div class="api-section">
+    <div class="api-section-title"><i class="fas fa-bullseye"></i> Hits Database</div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-GET">GET</span>
+            <span class="api-path">/api/hits</span>
+            <span class="api-desc">List hits from database</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Query params</div>
+            <table class="api-param-table">
+                <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+                <tr><td>search</td><td>string</td><td>Search in combo/username/extra</td></tr>
+                <tr><td>config</td><td>string</td><td>Filter by config name</td></tr>
+                <tr><td>limit</td><td>int</td><td>Max results (default: 500)</td></tr>
+                <tr><td>offset</td><td>int</td><td>Pagination offset</td></tr>
+            </table>
+            <div class="api-label">Response</div>
+            <div class="api-code">{ "hits": [{ "id": 1, "combo": "...", "username": "...", "password": "...", "config_name": "...", "extra": "{...}", "created_at": "..." }], "total": 150 }</div>
+        </div>
+    </div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-GET">GET</span>
+            <span class="api-path">/api/hits/export</span>
+            <span class="api-desc">Export hits as text</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Query params</div>
+            <table class="api-param-table">
+                <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+                <tr><td>config</td><td>string</td><td>Filter by config name</td></tr>
+                <tr><td>format</td><td>string</td><td><code>combo</code> | <code>user_pass</code> | <code>capture</code> | <code>full</code></td></tr>
+            </table>
+            <div class="api-label">Response (text/plain)</div>
+            <div class="api-code">combo: user:pass
+capture: user:pass | token=abc123 | email=test@mail.com
+full: user:pass | token=abc123 | status=200</div>
+        </div>
+    </div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-DELETE">DELETE</span>
+            <span class="api-path">/api/hits/:id</span>
+            <span class="api-desc">Delete a single hit</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Response</div>
+            <div class="api-code">{ "ok": true }</div>
+        </div>
+    </div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-POST">POST</span>
+            <span class="api-path">/api/hits/clear</span>
+            <span class="api-desc">Clear all hits (or by config)</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Body (JSON, optional)</div>
+            <div class="api-code">{ "config": "My Config" }</div>
+        </div>
+    </div>
+</div>
+
+<div class="api-section">
+    <div class="api-section-title"><i class="fas fa-bug"></i> Debugger</div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-POST">POST</span>
+            <span class="api-path">/api/debugger/step</span>
+            <span class="api-desc">Execute a single pipeline step</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Body (JSON)</div>
+            <table class="api-param-table">
+                <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+                <tr><td>blocks</td><td>array</td><td>Array of block objects</td></tr>
+                <tr><td>step</td><td>int</td><td>Current step index</td></tr>
+                <tr><td>context</td><td>object</td><td>Current execution context (variables)</td></tr>
+            </table>
+            <div class="api-label">Response</div>
+            <div class="api-code">{
+  "done": false, "step": 0, "block_type": "request",
+  "ok": true, "error": null,
+  "condition": null,
+  "context": { "user": "test", "status": "200", "response": "...", "_result": "NONE" },
+  "next_step": 1
+}</div>
+        </div>
+    </div>
+</div>
+
+<div class="api-section">
+    <div class="api-section-title"><i class="fas fa-exchange-alt"></i> Converter</div>
+
+    <div class="api-endpoint" onclick="this.classList.toggle('open')">
+        <div class="api-ep-head">
+            <span class="api-method m-POST">POST</span>
+            <span class="api-path">/api/convert</span>
+            <span class="api-desc">Convert LoliScript/OpenBullet config to NextBullet blocks</span>
+        </div>
+        <div class="api-ep-body">
+            <div class="api-label">Body (JSON)</div>
+            <table class="api-param-table">
+                <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+                <tr><td>source</td><td>string</td><td>Config source code</td></tr>
+                <tr><td>format</td><td>string</td><td><code>loliscript</code> | <code>openbullet2</code></td></tr>
+            </table>
+            <div class="api-label">Response</div>
+            <div class="api-code">{ "blocks": [{ "type": "request", "method": "POST", "url": "...", ... }] }</div>
+        </div>
+    </div>
+</div>
+
+</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('base-url').textContent = window.location.origin;
+</script>
+{% endblock %}

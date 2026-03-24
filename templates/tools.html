@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+{% block title %}Tools | NextBullet{% endblock %}
+
+{% block extra_css %}
+<style>
+.tools-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.tool-card { background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; display: flex; flex-direction: column; }
+.tool-card-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.tool-card-header i { color: var(--accent); font-size: 16px; }
+.tool-card-header span { font-size: 14px; font-weight: 600; color: var(--text); }
+.tool-card-body { padding: 16px 18px; flex: 1; display: flex; flex-direction: column; }
+
+.converter-top { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.convert-input { flex: 1; min-height: 280px; font-family: var(--mono); font-size: 12px; resize: vertical; }
+.convert-output { flex: 1; min-height: 280px; font-family: var(--mono); font-size: 12px; resize: vertical; background: var(--bg-3); }
+.convert-mid { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 0 12px; }
+.convert-panels { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0; flex: 1; }
+
+.example-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.example-btn { background: var(--bg-3); border: 1px solid var(--border); color: var(--text-dim); padding: 6px 12px; border-radius: var(--r); cursor: pointer; font-size: 12px; text-align: left; font-family: var(--mono); transition: background 0.12s ease; }
+.example-btn:hover { background: var(--bg-4); color: var(--text); }
+
+@media (max-width: 900px) {
+    .tools-grid { grid-template-columns: 1fr; }
+    .convert-panels { grid-template-columns: 1fr; }
+    .convert-mid { flex-direction: row; padding: 12px 0; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="topbar">
+    <span class="topbar-title">Tools</span>
+</div>
+
+<div class="page-body">
+    <div class="tool-card" style="margin-bottom:16px">
+        <div class="tool-card-header">
+            <i class="fas fa-exchange-alt"></i>
+            <span>Config Converter</span>
+        </div>
+        <div class="tool-card-body">
+            <div class="converter-top">
+                <label class="form-label" style="margin:0">Source format:</label>
+                <select id="conv-format" class="select" style="width:200px">
+                    <option value="loliscript">LoliScript (OpenBullet 1 / SilverBullet)</option>
+                    <option value="openbullet2">OpenBullet 2 (JSON)</option>
+                </select>
+                <button class="btn btn-primary btn-sm" onclick="doConvert()"><i class="fas fa-bolt"></i> Convert</button>
+                <button class="btn btn-ghost btn-sm" onclick="importConverted()"><i class="fas fa-file-import"></i> Import as Config</button>
+                <span id="conv-status" style="font-size:11px;color:var(--text-muted);margin-left:auto"></span>
+            </div>
+
+            <div class="convert-panels">
+                <div style="display:flex;flex-direction:column">
+                    <label class="form-label" style="margin-bottom:6px">Paste source config</label>
+                    <textarea id="conv-input" class="textarea convert-input" placeholder="REQUEST GET &quot;https://example.com/login&quot;
+  Content-Type: application/json
+  BODY {&quot;user&quot;:&quot;<USER>&quot;,&quot;pass&quot;:&quot;<PASS>&quot;}
+
+KEYCHECK
+  SUCCESS &quot;welcome&quot;
+  FAIL &quot;invalid&quot;"></textarea>
+                </div>
+
+                <div class="convert-mid">
+                    <i class="fas fa-arrow-right" style="color:var(--text-muted);font-size:20px"></i>
+                </div>
+
+                <div style="display:flex;flex-direction:column">
+                    <label class="form-label" style="margin-bottom:6px">NextBullet blocks (JSON)</label>
+                    <textarea id="conv-output" class="textarea convert-output" readonly placeholder="Converted blocks will appear here..."></textarea>
+                </div>
+            </div>
+
+            <div style="margin-top:12px">
+                <label class="form-label">Examples</label>
+                <div class="example-list" style="flex-direction:row;flex-wrap:wrap;gap:6px">
+                    <button class="example-btn" onclick="loadExample('login')">Login config</button>
+                    <button class="example-btn" onclick="loadExample('api')">API check</button>
+                    <button class="example-btn" onclick="loadExample('parse')">Parse token</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tool-card" style="margin-bottom:16px">
+        <div class="tool-card-header">
+            <i class="fas fa-shield-alt"></i>
+            <span>Proxy Checker</span>
+        </div>
+        <div class="tool-card-body">
+            <div style="display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:10px">
+                <div class="form-group" style="margin:0">
+                    <label class="form-label">Test URL</label>
+                    <input id="pc-url" class="input mono" value="https://httpbin.org/ip">
+                </div>
+                <div class="form-group" style="margin:0">
+                    <label class="form-label">Timeout (s)</label>
+                    <input id="pc-timeout" class="input" type="number" min="1" max="30" value="5" style="width:70px">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Proxies (one per line)</label>
+                <textarea id="pc-input" class="textarea mono" rows="6" placeholder="http://user:pass@host:port
+socks5://host:port
+host:port"></textarea>
+            </div>
+            <div style="display:flex;gap:6px;margin-bottom:10px">
+                <button class="btn btn-primary btn-sm" id="pc-start" onclick="proxyCheck()"><i class="fas fa-play"></i> Check All</button>
+                <button class="btn btn-ghost btn-sm" onclick="proxyExport('alive')"><i class="fas fa-download"></i> Export Alive</button>
+                <button class="btn btn-ghost btn-sm" onclick="proxyExport('dead')"><i class="fas fa-download"></i> Export Dead</button>
+                <span id="pc-status" style="font-size:11px;color:var(--text-muted);margin-left:auto;font-family:var(--mono);align-self:center"></span>
+            </div>
+            <div id="pc-results" style="font-family:var(--mono);font-size:11px;max-height:300px;overflow-y:auto;background:var(--bg-0);border:1px solid var(--border);border-radius:var(--r);padding:0"></div>
+        </div>
+    </div>
+
+    <div class="tools-grid">
+        <div class="tool-card">
+            <div class="tool-card-header">
+                <i class="fas fa-lock"></i>
+                <span>Encoder / Decoder</span>
+            </div>
+            <div class="tool-card-body">
+                <div class="form-group">
+                    <label class="form-label">Input</label>
+                    <textarea id="enc-input" class="textarea mono" rows="3" placeholder="Text to encode/decode..."></textarea>
+                </div>
+                <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">
+                    <button class="btn btn-ghost btn-sm" onclick="encOp('base64_enc')">Base64 Enc</button>
+                    <button class="btn btn-ghost btn-sm" onclick="encOp('base64_dec')">Base64 Dec</button>
+                    <button class="btn btn-ghost btn-sm" onclick="encOp('url_enc')">URL Enc</button>
+                    <button class="btn btn-ghost btn-sm" onclick="encOp('url_dec')">URL Dec</button>
+                    <button class="btn btn-ghost btn-sm" onclick="encOp('md5')">MD5</button>
+                    <button class="btn btn-ghost btn-sm" onclick="encOp('sha256')">SHA256</button>
+                    <button class="btn btn-ghost btn-sm" onclick="encOp('hex_enc')">Hex Enc</button>
+                    <button class="btn btn-ghost btn-sm" onclick="encOp('hex_dec')">Hex Dec</button>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Output</label>
+                    <textarea id="enc-output" class="textarea mono" rows="3" readonly></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const EXAMPLES = {
+    login: `REQUEST POST "https://example.com/api/login"
+  Content-Type: application/json
+  BODY {"username":"<USER>","password":"<PASS>"}
+
+KEYCHECK
+  SUCCESS "welcome"
+  SUCCESS "dashboard"
+  FAIL "invalid"
+  FAIL "incorrect"
+  RETRY "rate limit"
+  BAN "blocked"`,
+
+    api: `REQUEST GET "https://api.example.com/user/profile"
+  Authorization: Bearer <TOKEN>
+
+IF <STATUS> EqualTo "200"
+  KEYCHECK
+    SUCCESS "username"
+    FAIL "unauthorized"
+ELSE
+  KEYCHECK
+    FAIL "error"
+ENDIF`,
+
+    parse: `REQUEST POST "https://example.com/auth"
+  Content-Type: application/json
+  BODY {"user":"<USER>","pass":"<PASS>"}
+
+PARSE <TOKEN> LR "token\":\"" "\""
+PARSE <UID> JSON "data.user.id"
+
+SET <AUTH> "Bearer <TOKEN>"
+
+REQUEST GET "https://example.com/api/profile"
+  Authorization: <AUTH>
+
+KEYCHECK
+  SUCCESS "email"
+  FAIL "unauthorized"`,
+};
+
+function loadExample(name) {
+    document.getElementById('conv-input').value = EXAMPLES[name] || '';
+    document.getElementById('conv-format').value = 'loliscript';
+}
+
+async function doConvert() {
+    const input = document.getElementById('conv-input').value.trim();
+    if (!input) return;
+
+    const format = document.getElementById('conv-format').value;
+    const status = document.getElementById('conv-status');
+    status.textContent = 'Converting...';
+
+    try {
+        const resp = await fetch('/api/convert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source: input, format }),
+        });
+        const data = await resp.json();
+        if (data.error) {
+            status.textContent = 'Error: ' + data.error;
+            status.style.color = 'var(--red)';
+            return;
+        }
+        document.getElementById('conv-output').value = JSON.stringify(data.blocks, null, 2);
+        status.textContent = `${data.blocks.length} block(s) converted`;
+        status.style.color = 'var(--green)';
+    } catch (e) {
+        status.textContent = 'Network error';
+        status.style.color = 'var(--red)';
+    }
+}
+
+async function importConverted() {
+    const raw = document.getElementById('conv-output').value.trim();
+    if (!raw) { doConvert(); return; }
+
+    let blocks;
+    try { blocks = JSON.parse(raw); } catch (e) { return; }
+
+    const resp = await fetch('/api/configs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            name: 'Imported Config',
+            author: '',
+            settings: { max_threads: 10, timeout: 10 },
+            blocks,
+        }),
+    });
+
+    if (resp.ok) {
+        const saved = await resp.json();
+        window.location.href = `/configs/${saved.id}/edit`;
+    }
+}
+
+function encOp(op) {
+    const input = document.getElementById('enc-input').value;
+    let output = '';
+    try {
+        if (op === 'base64_enc') output = btoa(unescape(encodeURIComponent(input)));
+        else if (op === 'base64_dec') output = decodeURIComponent(escape(atob(input)));
+        else if (op === 'url_enc') output = encodeURIComponent(input);
+        else if (op === 'url_dec') output = decodeURIComponent(input);
+        else if (op === 'hex_enc') output = Array.from(new TextEncoder().encode(input)).map(b => b.toString(16).padStart(2, '0')).join('');
+        else if (op === 'hex_dec') output = new TextDecoder().decode(new Uint8Array(input.match(/.{1,2}/g).map(b => parseInt(b, 16))));
+        else if (op === 'md5' || op === 'sha256') {
+            crypto.subtle.digest(op === 'md5' ? 'MD5' : 'SHA-256', new TextEncoder().encode(input))
+                .then(buf => {
+                    document.getElementById('enc-output').value = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+                }).catch(() => {
+                    document.getElementById('enc-output').value = op + ' not supported in this browser';
+                });
+            return;
+        }
+    } catch (e) { output = 'Error: ' + e.message; }
+    document.getElementById('enc-output').value = output;
+}
+
+let pcResults = [];
+
+async function proxyCheck() {
+    const raw = document.getElementById('pc-input').value.trim();
+    if (!raw) return;
+    const proxies = raw.split('\n').map(p => p.trim()).filter(Boolean);
+    const testUrl = document.getElementById('pc-url').value.trim();
+    const timeout = parseInt(document.getElementById('pc-timeout').value) || 5;
+    const el = document.getElementById('pc-results');
+    const status = document.getElementById('pc-status');
+    const btn = document.getElementById('pc-start');
+
+    pcResults = [];
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
+    el.innerHTML = '';
+
+    let alive = 0, dead = 0;
+
+    for (let i = 0; i < proxies.length; i++) {
+        const proxy = proxies[i];
+        status.textContent = `${i + 1}/${proxies.length}`;
+
+        try {
+            const resp = await fetch('/api/proxy/check', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ proxy, test_url: testUrl, timeout }),
+            });
+            const data = await resp.json();
+            data.proxy = proxy;
+            pcResults.push(data);
+
+            const ok = data.alive;
+            if (ok) alive++; else dead++;
+
+            el.insertAdjacentHTML('beforeend',
+                `<div style="display:flex;align-items:center;gap:8px;padding:4px 10px;border-bottom:1px solid rgba(42,42,50,0.3);color:${ok?'#22c55e':'#ef4444'}">
+                    <span style="min-width:16px"><i class="fas fa-${ok?'check':'times'}"></i></span>
+                    <span style="flex:1;color:var(--text-dim)">${proxy}</span>
+                    ${ok ? `<span style="color:#22c55e">${data.ms}ms</span>` : `<span style="color:#ef4444;font-size:10px">${data.error||'dead'}</span>`}
+                    ${data.ip ? `<span style="color:var(--text-muted);font-size:10px">${data.ip}</span>` : ''}
+                </div>`);
+            el.scrollTop = el.scrollHeight;
+        } catch(e) {
+            pcResults.push({ proxy, alive: false, error: 'network' });
+            dead++;
+        }
+    }
+
+    status.textContent = `${alive} alive / ${dead} dead`;
+    status.style.color = alive > 0 ? 'var(--green)' : 'var(--red)';
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-play"></i> Check All';
+}
+
+function proxyExport(type) {
+    const list = pcResults.filter(r => type === 'alive' ? r.alive : !r.alive).map(r => r.proxy);
+    if (!list.length) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([list.join('\n')], { type: 'text/plain' }));
+    a.download = `proxies_${type}.txt`;
+    a.click();
+}
+</script>
+{% endblock %}

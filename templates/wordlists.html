@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Wordlists | NextBullet{% endblock %}
+
+{% block content %}
+<div class="topbar">
+    <span class="topbar-title">Wordlists</span>
+    <div class="topbar-actions">
+        <label class="btn btn-primary btn-sm" style="cursor:pointer">
+            <i class="fas fa-upload"></i> Upload
+            <input id="file-inp" type="file" style="display:none" accept=".txt,.csv" onchange="upload(this)">
+        </label>
+    </div>
+</div>
+<div class="page-body">
+    <div class="card" style="padding:0;overflow:hidden">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Filename</th>
+                        <th>Lines</th>
+                        <th>Size</th>
+                        <th>Modified</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody">
+                    <tr><td colspan="5" class="table-empty">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function fmtSize(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+    return (b/1048576).toFixed(1) + ' MB';
+}
+
+function fmtDate(s) {
+    if (!s) return '';
+    return new Date(s).toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric'});
+}
+
+async function load() {
+    const wls = await fetch('/api/wordlists').then(r => r.json());
+    const tbody = document.getElementById('tbody');
+    if (!wls.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="table-empty">No wordlists. Upload a .txt file.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = wls.map(w => `
+        <tr>
+            <td class="mono bold">${esc(w.name)}</td>
+            <td>${w.lines.toLocaleString()}</td>
+            <td class="text-muted">${fmtSize(w.size)}</td>
+            <td class="text-muted mono" style="font-size:11px">${fmtDate(w.modified)}</td>
+            <td>
+                <button class="btn-icon" title="Delete" onclick="del('${esc(w.name)}')"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>`).join('');
+}
+
+async function del(name) {
+    if (!confirm(`Delete wordlist "${name}"?`)) return;
+    await fetch(`/api/wordlists/${encodeURIComponent(name)}`, {method:'DELETE'});
+    load();
+}
+
+async function upload(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    const resp = await fetch('/api/wordlists', {method:'POST', body: fd});
+    input.value = '';
+    if (resp.ok) load();
+    else alert('Upload failed');
+}
+
+load();
+</script>
+{% endblock %}

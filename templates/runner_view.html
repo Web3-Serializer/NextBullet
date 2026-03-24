@@ -1,0 +1,402 @@
+{% extends "base.html" %}
+{% block title %}Runner View | NextBullet{% endblock %}
+
+{% block extra_css %}
+<style>
+.rv-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.rv-stat {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 10px 12px;
+    text-align: center;
+}
+.rv-stat-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+.rv-stat-val {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+.rv-stat-val.green  { color: var(--green); }
+.rv-stat-val.red    { color: var(--red); }
+.rv-stat-val.yellow { color: var(--yellow); }
+.rv-stat-val.blue   { color: var(--accent); }
+.rv-stat-val.purple { color: var(--purple); }
+
+.rv-progress {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 12px 16px;
+    margin-bottom: 12px;
+}
+.rv-progress-bar {
+    height: 8px;
+    background: var(--bg-4);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+.rv-progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+.rv-progress-fill.finished { background: var(--green); }
+.rv-progress-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.rv-panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    flex: 1;
+    min-height: 0;
+}
+.rv-panel {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+.rv-panel-head {
+    padding: 8px 14px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+.rv-panel-body {
+    flex: 1;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.7;
+    padding: 4px 0;
+}
+
+.rv-log-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 12px;
+    border-bottom: 1px solid rgba(42,42,50,0.3);
+}
+.rv-log-line:hover { background: var(--bg-3); }
+.rv-log-time { color: var(--text-muted); min-width: 58px; font-size: 10px; }
+.rv-log-combo { flex: 1; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-log-status { min-width: 28px; text-align: center; font-size: 10px; color: var(--text-muted); }
+.rv-log-result {
+    min-width: 56px;
+    text-align: center;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    border-radius: 3px;
+}
+.rv-r-SUCCESS { background: var(--green-dim); color: var(--green); }
+.rv-r-FAIL    { color: var(--text-muted); }
+.rv-r-RETRY   { background: var(--yellow-dim); color: var(--yellow); }
+.rv-r-BAN     { background: rgba(168,85,247,0.12); color: var(--purple); }
+.rv-r-ERROR   { background: var(--red-dim); color: var(--red); }
+
+.rv-hit-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px;
+    border-bottom: 1px solid rgba(42,42,50,0.3);
+    color: var(--green);
+}
+.rv-hit-line:hover { background: var(--bg-3); }
+.rv-hit-time { color: var(--text-muted); min-width: 58px; font-size: 10px; }
+.rv-hit-combo { flex: 1; }
+.rv-hit-captures { display: flex; gap: 4px; flex-wrap: wrap; }
+.rv-cap-tag {
+    font-size: 10px; padding: 1px 6px; border-radius: 3px;
+    background: var(--yellow-dim); color: var(--yellow);
+    white-space: nowrap;
+}
+.rv-log-capture {
+    font-size: 10px; color: var(--yellow);
+    max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.rv-filter { display: flex; gap: 2px; }
+.rv-filter button {
+    padding: 2px 7px; background: transparent;
+    border: 1px solid var(--border); color: var(--text-muted);
+    font-size: 10px; cursor: pointer; border-radius: 3px;
+}
+.rv-filter button:hover { color: var(--text-dim); background: var(--bg-3); }
+.rv-filter button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+@media (max-width: 900px) {
+    .rv-panels { grid-template-columns: 1fr; }
+    .rv-stats { grid-template-columns: repeat(4, 1fr); }
+}
+@media (max-width: 500px) {
+    .rv-stats { grid-template-columns: repeat(3, 1fr); }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="topbar" style="padding:0 16px">
+    <div class="flex items-center gap-2">
+        <a href="/runners" class="btn-icon"><i class="fas fa-arrow-left"></i></a>
+        <span class="topbar-title" id="rv-title">Runner</span>
+        <span class="topbar-sub" id="rv-status"></span>
+    </div>
+    <div class="topbar-actions" id="rv-actions"></div>
+</div>
+
+<div class="page-body" style="display:flex;flex-direction:column;height:calc(100vh - 52px);padding:16px">
+    <div class="rv-stats" id="rv-stats">
+        <div class="rv-stat"><div class="rv-stat-label">Tested</div><div class="rv-stat-val" id="s-tested">0</div></div>
+        <div class="rv-stat"><div class="rv-stat-label">Hits</div><div class="rv-stat-val green" id="s-hits">0</div></div>
+        <div class="rv-stat"><div class="rv-stat-label">Fails</div><div class="rv-stat-val" id="s-fails">0</div></div>
+        <div class="rv-stat"><div class="rv-stat-label">Retries</div><div class="rv-stat-val yellow" id="s-retries">0</div></div>
+        <div class="rv-stat"><div class="rv-stat-label">Bans</div><div class="rv-stat-val purple" id="s-bans">0</div></div>
+        <div class="rv-stat"><div class="rv-stat-label">Errors</div><div class="rv-stat-val red" id="s-errors">0</div></div>
+        <div class="rv-stat"><div class="rv-stat-label">CPM</div><div class="rv-stat-val blue" id="s-cpm">0</div></div>
+        <div class="rv-stat"><div class="rv-stat-label">Elapsed</div><div class="rv-stat-val" id="s-elapsed" style="font-size:16px">00:00</div></div>
+    </div>
+
+    <div class="rv-progress">
+        <div class="rv-progress-bar"><div class="rv-progress-fill" id="rv-pbar" style="width:0%"></div></div>
+        <div class="rv-progress-info">
+            <span id="rv-ptext">0/0</span>
+            <span id="rv-ppct">0%</span>
+        </div>
+    </div>
+
+    <div class="rv-panels">
+        <div class="rv-panel">
+            <div class="rv-panel-head">
+                <span>Live Log</span>
+                <div class="rv-filter" id="rv-log-filter">
+                    <button class="active" data-f="all">All</button>
+                    <button data-f="SUCCESS">Hits</button>
+                    <button data-f="FAIL">Fail</button>
+                    <button data-f="RETRY">Retry</button>
+                    <button data-f="BAN">Ban</button>
+                    <button data-f="ERROR">Error</button>
+                </div>
+            </div>
+            <div class="rv-panel-body" id="rv-log"></div>
+        </div>
+
+        <div class="rv-panel">
+            <div class="rv-panel-head">
+                <span>Hits (<span id="rv-hit-count">0</span>)</span>
+                <div class="flex gap-1">
+                    <button class="btn btn-ghost btn-sm" onclick="exportHits()" style="font-size:10px"><i class="fas fa-download"></i> Export</button>
+                </div>
+            </div>
+            <div class="rv-panel-body" id="rv-hits"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/modal.js') }}"></script>
+<script>
+const RUNNER_ID = "{{ runner_id }}";
+let logFilter = 'all';
+let lastLogId = 0;
+let allLogs = [];
+let autoScroll = true;
+let startedAt = null;
+let elapsedTimer = null;
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+async function pollStats() {
+    try {
+        const r = await fetch(`/api/runners/${RUNNER_ID}`).then(r => r.json());
+        if (r.error) { document.getElementById('rv-title').textContent = 'Runner not found'; return; }
+
+        document.getElementById('rv-title').textContent = r.config_name;
+
+        const statusBadge = `<span class="badge badge-${r.status}"><span class="dot"></span>${r.status}</span>`;
+        document.getElementById('rv-status').innerHTML = statusBadge;
+
+        document.getElementById('s-tested').textContent = r.tested;
+        document.getElementById('s-hits').textContent = r.hits;
+        document.getElementById('s-fails').textContent = r.fails;
+        document.getElementById('s-retries').textContent = r.retries;
+        document.getElementById('s-bans').textContent = r.bans || 0;
+        document.getElementById('s-errors').textContent = r.errors;
+        document.getElementById('s-cpm').textContent = r.cpm;
+
+        const pbar = document.getElementById('rv-pbar');
+        pbar.style.width = r.progress + '%';
+        pbar.className = 'rv-progress-fill' + (r.status === 'finished' ? ' finished' : '');
+        document.getElementById('rv-ptext').textContent = `${r.tested}/${r.total}`;
+        document.getElementById('rv-ppct').textContent = r.progress + '%';
+
+        document.getElementById('rv-hit-count').textContent = r.hits;
+
+        if (r.started_at && !startedAt) {
+            startedAt = new Date(r.started_at);
+            if (!elapsedTimer) elapsedTimer = setInterval(updateElapsed, 1000);
+        }
+        if (r.finished_at) {
+            if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
+            const start = new Date(r.started_at);
+            const end = new Date(r.finished_at);
+            document.getElementById('s-elapsed').textContent = fmtDuration(Math.floor((end - start) / 1000));
+        }
+        const acts = [];
+        if (r.status === 'running')  acts.push(`<button class="btn btn-ghost btn-sm" onclick="act('pause')"><i class="fas fa-pause"></i> Pause</button>`);
+        if (r.status === 'paused')   acts.push(`<button class="btn btn-ghost btn-sm" onclick="act('resume')"><i class="fas fa-play"></i> Resume</button>`);
+        if (['running','paused'].includes(r.status)) acts.push(`<button class="btn btn-danger btn-sm" onclick="act('stop')"><i class="fas fa-stop"></i> Stop</button>`);
+        document.getElementById('rv-actions').innerHTML = acts.join('');
+    } catch(e) {}
+}
+
+function updateElapsed() {
+    if (!startedAt) return;
+    const secs = Math.floor((Date.now() - startedAt.getTime()) / 1000);
+    document.getElementById('s-elapsed').textContent = fmtDuration(secs);
+}
+
+function fmtDuration(secs) {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+async function act(action) {
+    await fetch(`/api/runners/${RUNNER_ID}/${action}`, { method: 'POST' });
+    pollStats();
+}
+
+async function pollLog() {
+    try {
+        const entries = await fetch(`/api/runners/${RUNNER_ID}/log?after=${lastLogId}`).then(r => r.json());
+        if (!entries.length) return;
+
+        entries.forEach(e => {
+            allLogs.push(e);
+            if (e.id > lastLogId) lastLogId = e.id;
+        });
+        if (allLogs.length > 2000) allLogs = allLogs.slice(-1500);
+
+        renderLog();
+    } catch(e) {}
+}
+
+function renderLog() {
+    const el = document.getElementById('rv-log');
+    const filtered = logFilter === 'all' ? allLogs : allLogs.filter(e => e.result === logFilter);
+    const tail = filtered.slice(-300);
+
+    if (!tail.length) {
+        el.innerHTML = '<div style="color:var(--text-muted);padding:20px;text-align:center;font-family:var(--font)">Waiting for data...</div>';
+        return;
+    }
+
+    el.innerHTML = tail.map(e => {
+        const caps = Object.entries(e.captures||{}).map(([k,v]) => `${k}=${v}`).join(' | ');
+        return `<div class="rv-log-line">
+            <span class="rv-log-time">${e.time}</span>
+            <span class="rv-log-combo">${esc(e.combo)}</span>
+            ${caps ? `<span class="rv-log-capture">${esc(caps)}</span>` : ''}
+            <span class="rv-log-status">${e.status || ''}</span>
+            <span class="rv-log-result rv-r-${e.result}">${e.result}</span>
+        </div>`;
+    }).join('');
+
+    if (autoScroll) el.scrollTop = el.scrollHeight;
+}
+
+document.getElementById('rv-log-filter').addEventListener('click', e => {
+    const btn = e.target.closest('[data-f]');
+    if (!btn) return;
+    logFilter = btn.dataset.f;
+    document.querySelectorAll('#rv-log-filter button').forEach(b => b.classList.toggle('active', b === btn));
+    renderLog();
+});
+
+
+document.getElementById('rv-log').addEventListener('scroll', function() {
+    autoScroll = this.scrollTop + this.clientHeight >= this.scrollHeight - 30;
+});
+
+async function pollHits() {
+    try {
+        const hits = await fetch(`/api/runners/${RUNNER_ID}/hits`).then(r => r.json());
+        const el = document.getElementById('rv-hits');
+        if (!hits.length) {
+            el.innerHTML = '<div style="color:var(--text-muted);padding:20px;text-align:center;font-family:var(--font)">No hits yet</div>';
+            return;
+        }
+        el.innerHTML = hits.slice().reverse().map(h => {
+            const caps = Object.entries(h.captures||{}).map(([k,v]) => `<span class="rv-cap-tag">${esc(k)}=${esc(v)}</span>`).join('');
+            return `<div class="rv-hit-line">
+                <span class="rv-hit-time">${h.time}</span>
+                <span class="rv-hit-combo">${esc(h.combo)}</span>
+                ${caps ? `<span class="rv-hit-captures">${caps}</span>` : ''}
+            </div>`;
+        }).join('');
+    } catch(e) {}
+}
+
+function exportHits() {
+    fetch(`/api/runners/${RUNNER_ID}/hits`)
+        .then(r => r.json())
+        .then(hits => {
+            const txt = hits.map(h => {
+                const caps = Object.entries(h.captures||{}).map(([k,v]) => `${k}=${v}`);
+                return caps.length ? `${h.combo} | ${caps.join(' | ')}` : h.combo;
+            }).join('\n');
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain' }));
+            a.download = `hits_${RUNNER_ID.slice(0,8)}.txt`;
+            a.click();
+        });
+}
+
+pollStats();
+pollLog();
+pollHits();
+setInterval(pollStats, 1500);
+setInterval(pollLog, 1000);
+setInterval(pollHits, 3000);
+</script>
+{% endblock %}

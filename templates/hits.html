@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}Hits DB | NextBullet{% endblock %}
+
+{% block content %}
+<div class="topbar">
+    <div class="flex items-center gap-2">
+        <span class="topbar-title">Hits Database</span>
+        <span class="topbar-sub" id="hits-total"></span>
+    </div>
+    <div class="topbar-actions">
+        <input id="hits-search" class="input" placeholder="Search..." style="width:200px;padding:4px 10px;font-size:12px" oninput="loadHits()">
+        <select id="hits-filter" class="select" style="width:160px;padding:4px 10px;font-size:12px" onchange="loadHits()">
+            <option value="">All configs</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="exportHits('combo')"><i class="fas fa-download"></i> Export</button>
+        <button class="btn btn-danger btn-sm" onclick="clearHits()"><i class="fas fa-trash"></i> Clear</button>
+    </div>
+</div>
+<div class="page-body">
+    <div class="card" style="padding:0;overflow:hidden">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Config</th>
+                        <th>Username</th>
+                        <th>Password</th>
+                        <th>Combo</th>
+                        <th>Extra</th>
+                        <th>Time</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="hits-tbody">
+                    <tr><td colspan="8" class="table-empty">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/modal.js') }}"></script>
+<script>
+async function loadHits() {
+    const search = document.getElementById('hits-search').value;
+    const config = document.getElementById('hits-filter').value;
+    const qs = new URLSearchParams();
+    if (search) qs.set('search', search);
+    if (config) qs.set('config', config);
+
+    const resp = await fetch('/api/hits?' + qs.toString());
+    const data = await resp.json();
+    const tbody = document.getElementById('hits-tbody');
+    document.getElementById('hits-total').textContent = `(${data.total} total)`;
+
+    if (!data.hits.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="table-empty">No hits found</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = data.hits.map(h => {
+        let extra = '';
+        try { const e = typeof h.extra === 'string' ? JSON.parse(h.extra) : h.extra; extra = Object.entries(e).map(([k,v])=>`${k}=${v}`).join(', '); } catch(e) {}
+        return `<tr>
+            <td style="color:var(--text-muted)">${h.id}</td>
+            <td>${esc(h.config_name||'')}</td>
+            <td class="mono">${esc(h.username||'')}</td>
+            <td class="mono">${esc(h.password||'')}</td>
+            <td class="mono" style="color:var(--green)">${esc(h.combo||'')}</td>
+            <td style="font-size:11px;color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(extra)}</td>
+            <td style="font-size:11px;color:var(--text-muted);white-space:nowrap">${esc((h.created_at||'').replace('T',' ').slice(0,19))}</td>
+            <td><button class="btn-icon" onclick="deleteHit(${h.id})" title="Delete"><i class="fas fa-trash"></i></button></td>
+        </tr>`;
+    }).join('');
+}
+
+async function deleteHit(id) {
+    const ok = await NB.confirm('Delete this hit?');
+    if (!ok) return;
+    await fetch(`/api/hits/${id}`, { method: 'DELETE' });
+    loadHits();
+}
+
+async function clearHits() {
+    const config = document.getElementById('hits-filter').value;
+    const msg = config ? `Clear all hits for "${config}"?` : 'Clear ALL hits?';
+    const ok = await NB.confirm(msg, 'This cannot be undone.');
+    if (!ok) return;
+    await fetch('/api/hits/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: config || null }),
+    });
+    loadHits();
+}
+
+async function exportHits(fmt) {
+    const config = document.getElementById('hits-filter').value;
+    const qs = new URLSearchParams({ format: fmt });
+    if (config) qs.set('config', config);
+    const resp = await fetch('/api/hits/export?' + qs.toString());
+    const text = await resp.text();
+    const blob = new Blob([text], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `hits_${fmt}_${Date.now()}.txt`;
+    a.click();
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+async function loadConfigFilter() {
+    const resp = await fetch('/api/configs');
+    const configs = await resp.json();
+    const sel = document.getElementById('hits-filter');
+    configs.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.name;
+        opt.textContent = c.name;
+        sel.appendChild(opt);
+    });
+}
+
+loadConfigFilter();
+loadHits();
+</script>
+{% endblock %}

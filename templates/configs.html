@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Configs | NextBullet{% endblock %}
+
+{% block content %}
+<div class="topbar">
+    <span class="topbar-title">Configs</span>
+    <div class="topbar-actions">
+        <button class="btn btn-ghost btn-sm" onclick="load()"><i class="fas fa-sync"></i></button>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('import-file').click()"><i class="fas fa-upload"></i> Import</button>
+        <input type="file" id="import-file" accept=".nbcfg,.json" style="display:none" onchange="importConfig(this)">
+        <a href="/configs/new" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> New Config</a>
+    </div>
+</div>
+<div class="page-body">
+    <div class="card" style="padding:0;overflow:hidden">
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Author</th>
+                        <th>Blocks</th>
+                        <th>Threads</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody">
+                    <tr><td colspan="6" class="table-empty">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function fmtDate(s) {
+    if (!s) return '';
+    return new Date(s).toLocaleDateString('fr-FR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+
+async function load() {
+    const configs = await fetch('/api/configs').then(r => r.json());
+    const tbody = document.getElementById('tbody');
+    if (!configs.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="table-empty">No configs. <a href="/configs/new">Create one</a></td></tr>';
+        return;
+    }
+    tbody.innerHTML = configs.map(c => `
+        <tr>
+            <td><a href="/configs/${c.id}/edit" style="color:var(--accent);text-decoration:none;font-weight:500">${esc(c.name)}</a></td>
+            <td class="text-muted">${esc(c.author||'')}</td>
+            <td>${(c.blocks||[]).length}</td>
+            <td>${c.settings?.max_threads||10}</td>
+            <td class="text-muted mono" style="font-size:11px">${fmtDate(c.created_at)}</td>
+            <td>
+                <div class="flex gap-1">
+                    <a href="/configs/${c.id}/edit" class="btn-icon" title="Edit"><i class="fas fa-edit"></i></a>
+                    <button class="btn-icon" title="Export" onclick="exportCfg('${c.id}','${esc(c.name)}')"><i class="fas fa-download"></i></button>
+                    <button class="btn-icon" title="Delete" onclick="del('${c.id}','${esc(c.name)}')"><i class="fas fa-trash"></i></button>
+                </div>
+            </td>
+        </tr>`).join('');
+}
+
+async function del(id, name) {
+    if (!confirm(`Delete config "${name}"?`)) return;
+    await fetch(`/api/configs/${id}`, {method:'DELETE'});
+    load();
+}
+
+async function exportCfg(id, name) {
+    const cfg = await fetch(`/api/configs/${id}`).then(r => r.json());
+    const { id: _, created_at, updated_at, ...data } = cfg;
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (name.replace(/[^a-zA-Z0-9_-]/g, '_') || 'config') + '.nbcfg';
+    a.click();
+}
+
+async function importConfig(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const text = await file.text();
+    try {
+        const data = JSON.parse(text);
+        const resp = await fetch('/api/configs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: data.name || file.name.replace(/\.\w+$/, ''),
+                author: data.author || '',
+                settings: data.settings || { max_threads: 10, timeout: 10 },
+                blocks: data.blocks || [],
+            }),
+        });
+        if (resp.ok) {
+            load();
+        }
+    } catch(e) {
+        alert('Invalid config file');
+    }
+    input.value = '';
+}
+
+load();
+</script>
+{% endblock %}
